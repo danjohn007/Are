@@ -1,0 +1,107 @@
+import { useState } from 'react';
+import { Link, NavLink } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
+const links = [
+  { to: '/', label: 'Inicio' },
+  { to: '/properties', label: 'Propiedades' },
+  { to: '/services', label: 'Servicios' },
+  { to: '/news', label: 'Noticias' },
+  { to: '/contact', label: 'Contacto' },
+];
+
+export default function Navbar() {
+  const { isAuthenticated } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <header className="sticky top-0 z-30 bg-white shadow-sm">
+      {/* Top bar */}
+      <div className="hidden border-b border-gray-100 bg-slate-950 md:block">
+        <div className="section-shell flex items-center justify-between py-1.5 text-xs text-gray-300">
+          <span>Bienvenido a ARE — Especialistas en Bienes Raíces</span>
+          <span>contacto@are.mx</span>
+        </div>
+      </div>
+
+      {/* Main navbar */}
+      <div className="section-shell flex items-center justify-between py-4">
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 font-heading text-lg font-black text-white">A</span>
+          <span className="font-heading text-2xl font-extrabold tracking-tight text-slate-950">
+            ARE<span className="text-brand-500">.</span>
+          </span>
+        </Link>
+
+        {/* Desktop nav */}
+        <nav className="hidden gap-8 md:flex">
+          {links.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) =>
+                `text-sm font-semibold uppercase tracking-wide transition ${
+                  isActive ? 'text-brand-500' : 'text-slate-700 hover:text-brand-500'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* Right side */}
+        <div className="flex items-center gap-3">
+          {isAuthenticated && (
+            <Link
+              to="/admin"
+              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              Panel Admin
+            </Link>
+          )}
+          <Link
+            to="/contact"
+            className="hidden rounded-lg border border-brand-500 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 md:block"
+          >
+            Cotizar
+          </Link>
+
+          {/* Mobile hamburger */}
+          <button
+            className="ml-2 flex flex-col gap-1.5 md:hidden"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Menu"
+          >
+            <span className={`h-0.5 w-6 bg-slate-800 transition-transform ${menuOpen ? 'translate-y-2 rotate-45' : ''}`} />
+            <span className={`h-0.5 w-6 bg-slate-800 transition-opacity ${menuOpen ? 'opacity-0' : ''}`} />
+            <span className={`h-0.5 w-6 bg-slate-800 transition-transform ${menuOpen ? '-translate-y-2 -rotate-45' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {menuOpen && (
+        <div className="border-t border-gray-100 bg-white px-4 pb-4 md:hidden">
+          {links.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }) =>
+                `block py-3 text-sm font-semibold uppercase tracking-wide ${
+                  isActive ? 'text-brand-500' : 'text-slate-700'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </header>
+  );
+}

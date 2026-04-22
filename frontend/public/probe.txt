@@ -1,0 +1,2 @@
+HELLO-ARE-123
+If you can read this, static files are being served correctly from /inmobiliario.

@@ -1,0 +1,14 @@
+{
+  "name": "real-estate-portal-system",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "install:all": "npm install && npm --prefix frontend install",
+    "dev": "concurrently \"php -S localhost:8000 -t backare\" \"npm --prefix frontend run dev\"",
+    "dev:backend": "php -S localhost:8000 -t backare",
+    "dev:frontend": "npm --prefix frontend run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
