@@ -104,26 +104,85 @@ function generate_basic_pdf(string $title, array $lines): string
     return $pdf;
 }
 
+function ensure_property_columns(): void
+{
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+
+    $pdo = db();
+    $databaseName = (string)$pdo->query('SELECT DATABASE()')->fetchColumn();
+    if ($databaseName === '') {
+        return;
+    }
+
+    $stmt = $pdo->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table');
+    $stmt->execute([
+        ':schema' => $databaseName,
+        ':table' => 'properties',
+    ]);
+
+    $existing = array_fill_keys(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []), true);
+    $alterations = [];
+
+    $columns = [
+        'property_type' => 'ADD COLUMN property_type VARCHAR(120) NULL AFTER listing_kind',
+        'reference_code' => 'ADD COLUMN reference_code VARCHAR(80) NULL AFTER property_type',
+        'location_full' => 'ADD COLUMN location_full VARCHAR(255) NULL AFTER reference_code',
+        'photos_json' => 'ADD COLUMN photos_json LONGTEXT NULL AFTER image_url',
+        'tags_json' => 'ADD COLUMN tags_json LONGTEXT NULL AFTER photos_json',
+        'videos_json' => 'ADD COLUMN videos_json LONGTEXT NULL AFTER tags_json',
+        'files_json' => 'ADD COLUMN files_json LONGTEXT NULL AFTER videos_json',
+        'details_json' => 'ADD COLUMN details_json LONGTEXT NULL AFTER files_json',
+    ];
+
+    foreach ($columns as $column => $definition) {
+        if (!isset($existing[$column])) {
+            $alterations[] = $definition;
+        }
+    }
+
+    if ($alterations) {
+        $pdo->exec('ALTER TABLE properties ' . implode(', ', $alterations));
+    }
+
+    $ensured = true;
+}
+
 function tokko_sync(): array
 {
     $cfg = app_config()['tokko'];
-    if (!$cfg['url'] || !$cfg['api_key']) {
+    if (!$cfg['api_key']) {
         return ['synced' => 0, 'skipped' => true];
     }
 
-    $url = $cfg['url'] . '?key=' . urlencode($cfg['api_key']);
-    $json = @file_get_contents($url);
-    if (!$json) {
-        return ['synced' => 0, 'skipped' => false, 'error' => 'Unable to fetch Tokko'];
+    $endpoints = [];
+    if (!empty($cfg['url'])) {
+        $endpoints[] = ['url' => $cfg['url'], 'kind' => 'property'];
+    }
+    if (!empty($cfg['development_url'])) {
+        $endpoints[] = ['url' => $cfg['development_url'], 'kind' => 'development'];
     }
 
-    $payload = json_decode($json, true);
-    $items = $payload['objects'] ?? $payload['results'] ?? [];
+    if (!$endpoints) {
+        return ['synced' => 0, 'skipped' => true];
+    }
+
     $pdo = db();
+    ensure_property_columns();
 
     $sql = "
-        INSERT INTO properties (tokko_id, title, description, price, address, city, bedrooms, bathrooms, area, image_url)
-        VALUES (:tokko_id, :title, :description, :price, :address, :city, :bedrooms, :bathrooms, :area, :image_url)
+        INSERT INTO properties (
+            tokko_id, title, description, price, address, city, bedrooms, bathrooms, area, image_url,
+            photos_json, tags_json, videos_json, files_json, details_json,
+            operation_type, listing_kind, property_type, reference_code, location_full
+        )
+        VALUES (
+            :tokko_id, :title, :description, :price, :address, :city, :bedrooms, :bathrooms, :area, :image_url,
+            :photos_json, :tags_json, :videos_json, :files_json, :details_json,
+            :operation_type, :listing_kind, :property_type, :reference_code, :location_full
+        )
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
             description = VALUES(description),
@@ -134,27 +193,297 @@ function tokko_sync(): array
             bathrooms = VALUES(bathrooms),
             area = VALUES(area),
             image_url = VALUES(image_url),
+            photos_json = VALUES(photos_json),
+            tags_json = VALUES(tags_json),
+            videos_json = VALUES(videos_json),
+            files_json = VALUES(files_json),
+            details_json = VALUES(details_json),
+            operation_type = VALUES(operation_type),
+            listing_kind = VALUES(listing_kind),
+            property_type = VALUES(property_type),
+            reference_code = VALUES(reference_code),
+            location_full = VALUES(location_full),
             updated_at = NOW()
     ";
 
     $stmt = $pdo->prepare($sql);
     $synced = 0;
+    $errors = [];
 
-    foreach ($items as $item) {
-        $stmt->execute([
-            ':tokko_id' => (string)($item['id'] ?? ''),
-            ':title' => $item['publication_title'] ?? $item['title'] ?? 'Property',
-            ':description' => $item['description'] ?? '',
-            ':price' => (float)($item['operations'][0]['prices'][0]['price'] ?? 0),
-            ':address' => $item['address'] ?? '',
-            ':city' => $item['location']['name'] ?? ($item['location'] ?? ''),
-            ':bedrooms' => (int)($item['room_amount'] ?? 0),
-            ':bathrooms' => (int)($item['bathroom_amount'] ?? 0),
-            ':area' => (float)($item['surface'] ?? 0),
-            ':image_url' => $item['photos'][0]['image'] ?? '',
-        ]);
-        $synced++;
+    foreach ($endpoints as $endpoint) {
+        $items = tokko_fetch_items($endpoint['url'], $cfg['api_key']);
+        if ($items === null) {
+            $errors[] = 'Unable to fetch Tokko endpoint: ' . $endpoint['url'];
+            continue;
+        }
+
+        foreach ($items as $item) {
+            $isDevelopment = ($endpoint['kind'] === 'development') || tokko_is_development($item);
+            $kind = $isDevelopment ? 'development' : 'property';
+            $source = tokko_pick_source($item, $isDevelopment);
+
+            $rawId = (string)($item['id'] ?? '');
+            if ($rawId === '') {
+                continue;
+            }
+
+            $photos = tokko_extract_photos($source);
+            $tags = tokko_extract_tags($source);
+            $videos = array_values(is_array($source['videos'] ?? null) ? $source['videos'] : []);
+            $files = array_values(is_array($source['files'] ?? null) ? $source['files'] : []);
+            $description = tokko_extract_description($item, $source);
+            $publicUrl = $item['public_url'] ?? $source['public_url'] ?? $source['web_url'] ?? null;
+            if ($description === '' && is_string($publicUrl) && $publicUrl !== '') {
+                $description = tokko_fetch_public_description($publicUrl);
+            }
+
+            $stmt->execute([
+                ':tokko_id' => $kind . ':' . $rawId,
+                ':title' => $source['publication_title'] ?? $source['title'] ?? $source['name'] ?? $item['publication_title'] ?? 'Property',
+                ':description' => $description,
+                ':price' => tokko_extract_price($item),
+                ':address' => $source['real_address'] ?? $source['address'] ?? $item['real_address'] ?? $item['address'] ?? '',
+                ':city' => $source['location']['name'] ?? ($item['location']['name'] ?? $source['location'] ?? $item['location'] ?? $item['address_short'] ?? ''),
+                ':bedrooms' => (int)($source['room_amount'] ?? $source['suite_amount'] ?? $item['room_amount'] ?? $item['suite_amount'] ?? 0),
+                ':bathrooms' => (int)($source['bathroom_amount'] ?? $item['bathroom_amount'] ?? 0),
+                ':area' => (float)($source['surface'] ?? $source['roofed_surface'] ?? $source['total_surface'] ?? $item['surface'] ?? $item['roofed_surface'] ?? $item['total_surface'] ?? 0),
+                ':image_url' => $photos[0]['image'] ?? $source['photo'] ?? $item['photo'] ?? '',
+                ':photos_json' => json_encode($photos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':tags_json' => json_encode($tags, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':videos_json' => json_encode($videos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':files_json' => json_encode($files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':details_json' => json_encode(tokko_extract_details($item, $source, $isDevelopment), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':operation_type' => tokko_extract_operation_type($item),
+                ':listing_kind' => $kind,
+                ':property_type' => $source['type']['name'] ?? $item['type']['name'] ?? $item['type'] ?? null,
+                ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
+                ':location_full' => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
+            ]);
+            $synced++;
+        }
     }
 
-    return ['synced' => $synced, 'skipped' => false];
+    $result = ['synced' => $synced, 'skipped' => false];
+    if ($errors) {
+        $result['errors'] = $errors;
+    }
+
+    return $result;
+}
+
+function tokko_fetch_items(string $baseUrl, string $apiKey): ?array
+{
+    $url = $baseUrl . (str_contains($baseUrl, '?') ? '&' : '?') . 'key=' . urlencode($apiKey);
+    $json = @file_get_contents($url);
+    if (!$json) {
+        return null;
+    }
+
+    $payload = json_decode($json, true);
+    if (!is_array($payload)) {
+        return null;
+    }
+
+    $items = $payload['objects'] ?? $payload['results'] ?? [];
+    return is_array($items) ? $items : [];
+}
+
+function tokko_extract_price(array $item): float
+{
+    if (isset($item['operations'][0]['prices'][0]['price'])) {
+        return (float)$item['operations'][0]['prices'][0]['price'];
+    }
+    if (isset($item['price'])) {
+        return (float)$item['price'];
+    }
+    if (isset($item['from_price'])) {
+        return (float)$item['from_price'];
+    }
+    return 0.0;
+}
+
+function tokko_extract_description(array $item, array $source): string
+{
+    $candidates = [
+        $source['description_only'] ?? null,
+        $source['rich_description'] ?? null,
+        $source['description'] ?? null,
+        $item['description_only'] ?? null,
+        $item['rich_description'] ?? null,
+        $item['description'] ?? null,
+        $item['description_short'] ?? null,
+    ];
+
+    foreach ($candidates as $value) {
+        if (!is_string($value)) {
+            continue;
+        }
+
+        $normalized = trim(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($normalized === '') {
+            continue;
+        }
+
+        $lower = strtolower($normalized);
+        if ($lower === 'yes we are' || $lower === 'are real estate') {
+            continue;
+        }
+
+        return $normalized;
+    }
+
+    return '';
+}
+
+function tokko_fetch_public_description(string $publicUrl): string
+{
+    static $cache = [];
+
+    if (isset($cache[$publicUrl])) {
+        return $cache[$publicUrl];
+    }
+
+    $html = @file_get_contents($publicUrl);
+    if (!is_string($html) || $html === '') {
+        $cache[$publicUrl] = '';
+        return '';
+    }
+
+    // Normalize whitespace and extract text between "Descripcion" and "Ubicacion" blocks.
+    $plain = preg_replace('/\s+/u', ' ', strip_tags($html));
+    if (!is_string($plain) || $plain === '') {
+        $cache[$publicUrl] = '';
+        return '';
+    }
+
+    $description = '';
+    if (preg_match('/Descripci[oó]n\s+(.*?)\s+Ubicaci[oó]n/iu', $plain, $matches) === 1) {
+        $description = trim((string)$matches[1]);
+    }
+
+    if ($description !== '') {
+        $description = str_replace([' Mostrar m\u00e1s', ' Mostrar m\u00e1s ', ' Mostrar mas', ' Mostrar menos'], ' ', $description);
+        $description = preg_replace('/\s+/u', ' ', $description) ?: $description;
+    }
+
+    $cache[$publicUrl] = trim($description);
+    return $cache[$publicUrl];
+}
+
+function tokko_extract_operation_type(array $item): string
+{
+    $type = strtolower((string)($item['operations'][0]['operation_type'] ?? $item['operations'][0]['operation_type']['name'] ?? 'venta'));
+    return str_contains($type, 'rent') || str_contains($type, 'alquil') || str_contains($type, 'renta') ? 'renta' : 'venta';
+}
+
+function tokko_is_development(array $item): bool
+{
+    if (!empty($item['development']) || !empty($item['developments'])) {
+        return true;
+    }
+
+    $type = strtolower((string)($item['type']['name'] ?? $item['type'] ?? ''));
+    if (str_contains($type, 'desarrollo') || str_contains($type, 'emprendimiento') || str_contains($type, 'development')) {
+        return true;
+    }
+
+    $tags = strtolower((string)json_encode($item['tags'] ?? []));
+    return str_contains($tags, 'desarrollo') || str_contains($tags, 'emprendimiento') || str_contains($tags, 'development');
+}
+
+function tokko_pick_source(array $item, bool $isDevelopment): array
+{
+    if ($isDevelopment && !empty($item['development']) && is_array($item['development'])) {
+        return $item['development'];
+    }
+
+    return $item;
+}
+
+function tokko_extract_photos(array $item): array
+{
+    $photos = $item['photos'] ?? [];
+    if (!is_array($photos)) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map(static function ($photo) {
+        if (!is_array($photo) || empty($photo['image'])) {
+            return null;
+        }
+
+        return [
+            'image' => $photo['image'],
+            'thumb' => $photo['thumb'] ?? $photo['image'],
+            'original' => $photo['original'] ?? $photo['image'],
+            'description' => $photo['description'] ?? null,
+            'is_front_cover' => (bool)($photo['is_front_cover'] ?? false),
+            'is_blueprint' => (bool)($photo['is_blueprint'] ?? false),
+            'order' => (int)($photo['order'] ?? 0),
+        ];
+    }, $photos)));
+}
+
+function tokko_extract_tags(array $item): array
+{
+    $tags = $item['tags'] ?? [];
+    if (!is_array($tags)) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map(static function ($tag) {
+        if (is_array($tag)) {
+            return $tag['name'] ?? null;
+        }
+        return is_string($tag) ? $tag : null;
+    }, $tags)));
+}
+
+function tokko_extract_details(array $item, array $source, bool $isDevelopment): array
+{
+    return array_filter([
+        'is_development' => $isDevelopment,
+        'full_location' => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
+        'short_location' => $source['location']['short_location'] ?? $item['location']['short_location'] ?? null,
+        'zip_code' => $source['location']['zip_code'] ?? $item['location']['zip_code'] ?? null,
+        'geo_lat' => $source['geo_lat'] ?? $item['geo_lat'] ?? null,
+        'geo_long' => $source['geo_long'] ?? $item['geo_long'] ?? null,
+        'expenses' => $item['expenses'] ?? $source['expenses'] ?? null,
+        'parking_lot_amount' => $item['parking_lot_amount'] ?? $source['parking_lot_amount'] ?? null,
+        'covered_parking_lot' => $item['covered_parking_lot'] ?? $source['covered_parking_lot'] ?? null,
+        'front_measure' => $item['front_measure'] ?? $source['front_measure'] ?? null,
+        'depth_measure' => $item['depth_measure'] ?? $source['depth_measure'] ?? null,
+        'lot_number' => $item['lot_number'] ?? $source['lot_number'] ?? null,
+        'floor' => $item['floor'] ?? $source['floor'] ?? null,
+        'roofed_surface' => $item['roofed_surface'] ?? $source['roofed_surface'] ?? null,
+        'total_surface' => $item['total_surface'] ?? $source['total_surface'] ?? null,
+        'unroofed_surface' => $item['unroofed_surface'] ?? $source['unroofed_surface'] ?? null,
+        'private_area' => $item['private_area'] ?? $source['private_area'] ?? null,
+        'surface_measurement' => $item['surface_measurement'] ?? $source['surface_measurement'] ?? null,
+        'land_length' => $item['land_length'] ?? $source['land_length'] ?? null,
+        'land_width' => $item['land_width'] ?? $source['land_width'] ?? null,
+        'public_services' => $item['public_services'] ?? $source['public_services'] ?? null,
+        'electricity' => $item['electricity'] ?? $source['electricity'] ?? null,
+        'water' => $item['water'] ?? $source['water'] ?? null,
+        'sewerage' => $item['sewerage'] ?? $source['sewerage'] ?? null,
+        'construction_date' => $source['construction_date'] ?? null,
+        'construction_status' => $source['construction_status'] ?? null,
+        'property_condition' => $item['property_condition'] ?? null,
+        'situation' => $item['situation'] ?? null,
+        'age' => $item['age'] ?? null,
+        'orientation' => $item['orientation'] ?? $source['orientation'] ?? null,
+        'disposition' => $item['disposition'] ?? $source['disposition'] ?? null,
+        'zonification' => $item['zonification'] ?? $source['zonification'] ?? null,
+        'price_per_m2' => $item['price_per_m2'] ?? $source['price_per_m2'] ?? null,
+        'iptu' => $item['iptu'] ?? $source['iptu'] ?? null,
+        'credit_eligible' => $item['credit_eligible'] ?? $source['credit_eligible'] ?? null,
+        'public_url' => $item['public_url'] ?? $source['public_url'] ?? $source['web_url'] ?? null,
+        'branch' => [
+            'name' => $source['branch']['name'] ?? $item['branch']['name'] ?? null,
+            'email' => $source['branch']['email'] ?? $item['branch']['email'] ?? null,
+            'phone' => $source['branch']['phone'] ?? $item['branch']['phone'] ?? null,
+            'address' => $source['branch']['address'] ?? $item['branch']['address'] ?? null,
+            'contact_time' => $source['branch']['contact_time'] ?? $item['branch']['contact_time'] ?? null,
+        ],
+    ], static fn ($value) => $value !== null && $value !== '' && $value !== []);
 }

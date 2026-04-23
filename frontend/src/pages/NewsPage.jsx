@@ -17,7 +17,7 @@ export default function NewsPage() {
   return (
     <section className="section-shell py-14">
       <div className="mb-10 text-center">
-        <h2 className="font-heading text-4xl font-black text-slate-950">Noticias</h2>
+        <h2 className="font-heading text-4xl font-black text-slate-950">BLOG</h2>
         <p className="mt-2 text-gray-600">Las últimas novedades del mercado inmobiliario y consejos de nuestro equipo de expertos.</p>
       </div>
 

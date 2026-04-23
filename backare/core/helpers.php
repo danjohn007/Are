@@ -83,3 +83,40 @@ function log_info(string $message, array $context = []): void
     ];
     file_put_contents(__DIR__ . '/../logs/app.log', json_encode($payload) . PHP_EOL, FILE_APPEND);
 }
+
+function decode_json_field(mixed $value, array $fallback = []): array
+{
+    if (is_array($value)) {
+        return $value;
+    }
+    if (!is_string($value) || $value === '') {
+        return $fallback;
+    }
+
+    $decoded = json_decode($value, true);
+    return is_array($decoded) ? $decoded : $fallback;
+}
+
+function normalize_property_row(array $row): array
+{
+    $row['photos'] = decode_json_field($row['photos_json'] ?? null, []);
+    $row['tags'] = decode_json_field($row['tags_json'] ?? null, []);
+    $row['videos'] = decode_json_field($row['videos_json'] ?? null, []);
+    $row['files'] = decode_json_field($row['files_json'] ?? null, []);
+    $row['details'] = decode_json_field($row['details_json'] ?? null, []);
+
+    if (!$row['photos'] && !empty($row['image_url'])) {
+        $row['photos'] = [[
+            'image' => $row['image_url'],
+            'thumb' => $row['image_url'],
+            'original' => $row['image_url'],
+            'description' => null,
+            'is_front_cover' => true,
+            'order' => 0,
+        ]];
+    }
+
+    unset($row['photos_json'], $row['tags_json'], $row['videos_json'], $row['files_json'], $row['details_json']);
+
+    return $row;
+}

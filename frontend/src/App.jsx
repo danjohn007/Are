@@ -6,6 +6,8 @@ import PublicLayout from './layouts/PublicLayout';
 import HomePage from './pages/HomePage';
 import ServicesPage from './pages/ServicesPage';
 import PropertiesPage from './pages/PropertiesPage';
+import DevelopmentsPage from './pages/DevelopmentsPage';
+import PropertyDetailPage from './pages/PropertyDetailPage';
 import NewsPage from './pages/NewsPage';
 import ContactPage from './pages/ContactPage';
 import LoginPage from './pages/LoginPage';
@@ -28,6 +30,10 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/properties" element={<PropertiesPage />} />
+        <Route path="/properties/:id" element={<PropertyDetailPage />} />
+        <Route path="/developments" element={<DevelopmentsPage />} />
+        <Route path="/developments/:id" element={<PropertyDetailPage />} />
+        <Route path="/blog" element={<NewsPage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/login" element={<LoginPage />} />

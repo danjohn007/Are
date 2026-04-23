@@ -100,7 +100,7 @@ export default function DashboardPage() {
     { id: 'leads', label: '📋 Solicitudes' },
     { id: 'properties', label: '🏠 Propiedades' },
     { id: 'services', label: '⚙️ Servicios' },
-    { id: 'articles', label: '📰 Noticias' }
+    { id: 'articles', label: '📰 BLOG' }
   ];
 
   return (
@@ -465,7 +465,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Noticias Tab */}
+      {/* BLOG Tab */}
       {tab === 'articles' && (
         <div className="grid gap-8 lg:grid-cols-2">
           <section className="rounded-2xl border bg-white p-6 shadow-sm">
@@ -512,7 +512,7 @@ export default function DashboardPage() {
           </section>
 
           <section className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h3 className="font-heading text-xl font-bold mb-4">Noticias ({articles.length})</h3>
+            <h3 className="font-heading text-xl font-bold mb-4">BLOG ({articles.length})</h3>
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {articles.map((art) => (
                 <div key={art.id} className="flex items-start justify-between rounded-lg border p-3 hover:bg-gray-50">

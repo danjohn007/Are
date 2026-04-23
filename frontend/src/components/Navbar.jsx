@@ -5,14 +5,16 @@ import { useAuth } from '../context/AuthContext';
 const links = [
   { to: '/', label: 'Inicio' },
   { to: '/properties', label: 'Propiedades' },
+  { to: '/developments', label: 'Desarrollos' },
   { to: '/services', label: 'Servicios' },
-  { to: '/news', label: 'Noticias' },
+  { to: '/blog', label: 'BLOG' },
   { to: '/contact', label: 'Contacto' },
 ];
 
 export default function Navbar() {
   const { isAuthenticated } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const logoSrc = `${import.meta.env.BASE_URL}color_are.png`;
 
   return (
     <header className="sticky top-0 z-30 bg-white shadow-sm">
@@ -25,13 +27,14 @@ export default function Navbar() {
       </div>
 
       {/* Main navbar */}
-      <div className="section-shell flex items-center justify-between py-4">
+      <div className="section-shell flex items-center justify-between py-3">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 font-heading text-lg font-black text-white">A</span>
-          <span className="font-heading text-2xl font-extrabold tracking-tight text-slate-950">
-            ARE<span className="text-brand-500">.</span>
-          </span>
+        <Link to="/" className="shrink-0">
+          <img
+            src={logoSrc}
+            alt="ARE"
+            className="h-16 w-auto object-contain md:h-20"
+          />
         </Link>
 
         {/* Desktop nav */}

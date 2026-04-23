@@ -312,6 +312,7 @@ try {
         [$page, $limit, $offset] = pagination();
         $city      = $_GET['city'] ?? null;
         $operation = $_GET['operation_type'] ?? null;
+        $kind      = $_GET['listing_kind'] ?? null;
 
         $where  = [];
         $params = [];
@@ -322,6 +323,10 @@ try {
         if ($operation) {
             $where[]                   = 'operation_type = :operation_type';
             $params[':operation_type'] = $operation;
+        }
+        if ($kind) {
+            $where[]               = 'listing_kind = :listing_kind';
+            $params[':listing_kind'] = $kind;
         }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -336,7 +341,9 @@ try {
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
 
-        respond(200, ['success' => true, 'data' => $stmt->fetchAll(), 'meta' => ['total' => $total, 'page' => $page, 'limit' => $limit, 'totalPages' => (int)ceil($total / $limit)]]);
+        $rows = array_map('normalize_property_row', $stmt->fetchAll());
+
+        respond(200, ['success' => true, 'data' => $rows, 'meta' => ['total' => $total, 'page' => $page, 'limit' => $limit, 'totalPages' => (int)ceil($total / $limit)]]);
     }
 
     if (preg_match('#^/properties/(\d+)$#', $path, $m) && $method === 'GET') {
@@ -344,13 +351,13 @@ try {
         $stmt->execute([':id' => (int)$m[1]]);
         $row = $stmt->fetch();
         if (!$row) { respond(404, ['success' => false, 'message' => 'Propiedad no encontrada']); }
-        respond(200, ['success' => true, 'data' => $row]);
+        respond(200, ['success' => true, 'data' => normalize_property_row($row)]);
     }
 
     if ($path === '/properties' && $method === 'POST') {
         require_admin();
         $input = json_input();
-        $stmt = db()->prepare('INSERT INTO properties (tokko_id, title, description, price, address, city, bedrooms, bathrooms, area, image_url, operation_type) VALUES (:tokko_id, :title, :description, :price, :address, :city, :bedrooms, :bathrooms, :area, :image_url, :operation_type)');
+        $stmt = db()->prepare('INSERT INTO properties (tokko_id, title, description, price, address, city, bedrooms, bathrooms, area, image_url, operation_type, listing_kind) VALUES (:tokko_id, :title, :description, :price, :address, :city, :bedrooms, :bathrooms, :area, :image_url, :operation_type, :listing_kind)');
         $stmt->execute([
             ':tokko_id'      => $input['tokko_id'] ?? null,
             ':title'         => $input['title'] ?? '',
@@ -363,6 +370,7 @@ try {
             ':area'          => (float)($input['area'] ?? 0),
             ':image_url'     => $input['image_url'] ?? null,
             ':operation_type'=> $input['operation_type'] ?? 'venta',
+            ':listing_kind'  => $input['listing_kind'] ?? 'property',
         ]);
         $id = (int)db()->lastInsertId();
         $fetch = db()->prepare('SELECT * FROM properties WHERE id = :id LIMIT 1');
@@ -373,7 +381,7 @@ try {
     if (preg_match('#^/properties/(\d+)$#', $path, $m) && $method === 'PUT') {
         require_admin();
         $input = json_input();
-        $stmt = db()->prepare('UPDATE properties SET title=:title, description=:description, price=:price, address=:address, city=:city, bedrooms=:bedrooms, bathrooms=:bathrooms, area=:area, image_url=:image_url, operation_type=:operation_type, updated_at=NOW() WHERE id=:id');
+        $stmt = db()->prepare('UPDATE properties SET title=:title, description=:description, price=:price, address=:address, city=:city, bedrooms=:bedrooms, bathrooms=:bathrooms, area=:area, image_url=:image_url, operation_type=:operation_type, listing_kind=:listing_kind, updated_at=NOW() WHERE id=:id');
         $stmt->execute([
             ':title'         => $input['title'] ?? '',
             ':description'   => $input['description'] ?? null,
@@ -385,6 +393,7 @@ try {
             ':area'          => (float)($input['area'] ?? 0),
             ':image_url'     => $input['image_url'] ?? null,
             ':operation_type'=> $input['operation_type'] ?? 'venta',
+            ':listing_kind'  => $input['listing_kind'] ?? 'property',
             ':id'            => (int)$m[1],
         ]);
         $fetch = db()->prepare('SELECT * FROM properties WHERE id = :id LIMIT 1');

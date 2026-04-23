@@ -1,11 +1,27 @@
+import { Link } from 'react-router-dom';
+
 export default function Footer() {
+  const logoSrc = `${import.meta.env.BASE_URL}color_are.png`;
+  const footerLinks = [
+    { to: '/', label: 'Inicio' },
+    { to: '/properties', label: 'Propiedades' },
+    { to: '/developments', label: 'Desarrollos' },
+    { to: '/services', label: 'Servicios' },
+    { to: '/blog', label: 'BLOG' },
+    { to: '/contact', label: 'Contacto' },
+  ];
+
   return (
     <footer className="border-t border-gray-200 bg-slate-950 text-gray-400">
       <div className="section-shell grid gap-10 py-14 md:grid-cols-4">
         {/* Brand */}
         <div className="md:col-span-1">
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 font-heading text-sm font-black text-white">A</span>
+            <img
+              src={logoSrc}
+              alt="ARE"
+              className="h-8 w-auto object-contain"
+            />
             <span className="font-heading text-xl font-extrabold tracking-tight text-white">
               ARE<span className="text-brand-500">.</span>
             </span>
@@ -19,9 +35,11 @@ export default function Footer() {
         <div>
           <h4 className="mb-4 font-heading text-sm font-bold uppercase tracking-widest text-white">Navegación</h4>
           <ul className="space-y-2 text-sm">
-            {['Inicio', 'Propiedades', 'Servicios', 'Noticias', 'Contacto'].map((item) => (
-              <li key={item}>
-                <a href="#" className="transition hover:text-brand-500">{item}</a>
+            {footerLinks.map((item) => (
+              <li key={item.to}>
+                <Link to={item.to} className="transition hover:text-brand-500">
+                  {item.label}
+                </Link>
               </li>
             ))}
           </ul>

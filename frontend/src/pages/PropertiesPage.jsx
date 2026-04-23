@@ -8,7 +8,9 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     async function fetchProperties() {
-      const params = filter ? `?operation_type=${filter}&limit=30&page=1` : '?limit=30&page=1';
+      const params = filter
+        ? `?listing_kind=property&operation_type=${filter}&limit=30&page=1`
+        : '?listing_kind=property&limit=30&page=1';
       const response = await api.get(`/properties${params}`);
       setProperties(response.data.data);
     }

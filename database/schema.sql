@@ -32,11 +32,21 @@ CREATE TABLE IF NOT EXISTS properties (
   bathrooms INT NOT NULL DEFAULT 0,
   area DECIMAL(12,2) NOT NULL DEFAULT 0,
   image_url TEXT,
+  photos_json LONGTEXT,
+  tags_json LONGTEXT,
+  videos_json LONGTEXT,
+  files_json LONGTEXT,
+  details_json LONGTEXT,
   operation_type ENUM('venta','renta') NOT NULL DEFAULT 'venta',
+  listing_kind ENUM('property','development') NOT NULL DEFAULT 'property',
+  property_type VARCHAR(120),
+  reference_code VARCHAR(80),
+  location_full VARCHAR(255),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_properties_city (city),
-  INDEX idx_properties_operation (operation_type)
+  INDEX idx_properties_operation (operation_type),
+  INDEX idx_properties_listing_kind (listing_kind)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS articles (
