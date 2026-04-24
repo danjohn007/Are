@@ -218,7 +218,9 @@ function tokko_sync(): array
         }
 
         foreach ($items as $item) {
-            $isDevelopment = ($endpoint['kind'] === 'development') || tokko_is_development($item);
+            // Trust the endpoint source for listing kind to avoid false positives
+            // from tags/type text that can misclassify regular properties.
+            $isDevelopment = ($endpoint['kind'] === 'development');
             $kind = $isDevelopment ? 'development' : 'property';
             $source = tokko_pick_source($item, $isDevelopment);
 
@@ -273,19 +275,55 @@ function tokko_sync(): array
 
 function tokko_fetch_items(string $baseUrl, string $apiKey): ?array
 {
-    $url = $baseUrl . (str_contains($baseUrl, '?') ? '&' : '?') . 'key=' . urlencode($apiKey);
-    $json = @file_get_contents($url);
-    if (!$json) {
-        return null;
+    $items = [];
+    $offset = 0;
+    $limit = 50;
+
+    while (true) {
+        $separator = str_contains($baseUrl, '?') ? '&' : '?';
+        $url = $baseUrl . $separator . http_build_query([
+            'key' => $apiKey,
+            'limit' => $limit,
+            'offset' => $offset,
+        ]);
+
+        $json = @file_get_contents($url);
+        if (!$json) {
+            return $offset === 0 ? null : $items;
+        }
+
+        $payload = json_decode($json, true);
+        if (!is_array($payload)) {
+            return $offset === 0 ? null : $items;
+        }
+
+        $pageItems = $payload['objects'] ?? $payload['results'] ?? [];
+        if (!is_array($pageItems)) {
+            return $offset === 0 ? null : $items;
+        }
+
+        $items = array_merge($items, $pageItems);
+
+        $meta = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+        $next = $meta['next'] ?? null;
+        $totalCount = isset($meta['total_count']) ? (int)$meta['total_count'] : null;
+
+        if (!$next) {
+            break;
+        }
+
+        $offset += count($pageItems);
+
+        if ($totalCount !== null && $offset >= $totalCount) {
+            break;
+        }
+
+        if (count($pageItems) === 0) {
+            break;
+        }
     }
 
-    $payload = json_decode($json, true);
-    if (!is_array($payload)) {
-        return null;
-    }
-
-    $items = $payload['objects'] ?? $payload['results'] ?? [];
-    return is_array($items) ? $items : [];
+    return $items;
 }
 
 function tokko_extract_price(array $item): float

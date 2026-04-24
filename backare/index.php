@@ -309,10 +309,11 @@ try {
 
     // ─── Propiedades ─────────────────────────────────────────────────────────
     if ($path === '/properties' && $method === 'GET') {
-        [$page, $limit, $offset] = pagination();
         $city      = $_GET['city'] ?? null;
         $operation = $_GET['operation_type'] ?? null;
         $kind      = $_GET['listing_kind'] ?? null;
+        $rawLimit  = $_GET['limit'] ?? null;
+        $returnAll = $rawLimit === null || $rawLimit === '' || strtolower((string)$rawLimit) === 'all';
 
         $where  = [];
         $params = [];
@@ -331,14 +332,24 @@ try {
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $stmt  = db()->prepare("SELECT * FROM properties $whereClause ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
         $count = db()->prepare("SELECT COUNT(*) FROM properties $whereClause");
         $count->execute($params);
         $total = (int)$count->fetchColumn();
 
-        foreach ($params as $k => $v) { $stmt->bindValue($k, $v); }
-        $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        if ($returnAll) {
+            $page = 1;
+            $limit = max($total, 1);
+            $offset = 0;
+            $stmt = db()->prepare("SELECT * FROM properties $whereClause ORDER BY created_at DESC");
+            foreach ($params as $k => $v) { $stmt->bindValue($k, $v); }
+        } else {
+            [$page, $limit, $offset] = pagination();
+            $stmt = db()->prepare("SELECT * FROM properties $whereClause ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
+            foreach ($params as $k => $v) { $stmt->bindValue($k, $v); }
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        }
+
         $stmt->execute();
 
         $rows = array_map('normalize_property_row', $stmt->fetchAll());

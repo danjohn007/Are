@@ -1,20 +1,84 @@
-@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Poppins:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg-cream: #fff9f2;
-  --text-main: #1f2937;
+  --font-heading: 'Avenir LT Std 95 Black', 'Avenir LT Std', Avenir, Roboto, sans-serif;
+  --font-subheading: 'Avenir LT Std 45 Book', 'Avenir LT Std', Avenir, Roboto, sans-serif;
+  --font-body: 'Roboto', sans-serif;
+  --color-brand: #BC561D;
+  --color-brand-soft: #ecd7ca;
+  --color-arsenic: #434242;
+  --color-granite: #606060;
+  --color-isabelline: #F1F0F0;
+  --color-surface: #fbfbfb;
+}
+
+html {
+  background-color: var(--color-isabelline);
+  scroll-behavior: smooth;
 }
 
 body {
-  @apply font-body text-gray-800;
-  background: #ffffff;
-  color: var(--text-main);
+  @apply font-body;
+  background: linear-gradient(180deg, #f7f3f0 0%, #ffffff 34%, #f1f0f0 100%);
+  color: var(--color-arsenic);
+  font-family: var(--font-body);
 }
 
 .section-shell {
   @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading);
+    color: var(--color-arsenic);
+    letter-spacing: 0.01em;
+  }
+
+  h4,
+  h5,
+  h6,
+  .font-subheading,
+  nav a,
+  button {
+    font-family: var(--font-subheading);
+  }
+
+  p,
+  span,
+  li,
+  input,
+  textarea,
+  select,
+  label {
+    font-family: var(--font-body);
+  }
+
+  a {
+    color: inherit;
+  }
+
+  ::selection {
+    background: rgba(188, 86, 29, 0.16);
+    color: var(--color-arsenic);
+  }
+}
+
+@layer components {
+  .surface-panel {
+    background-color: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(96, 96, 96, 0.12);
+    box-shadow: 0 20px 50px -35px rgba(67, 66, 66, 0.35);
+  }
+
+  .surface-dark {
+    background: linear-gradient(135deg, #434242 0%, #2f2e2e 100%);
+    color: #ffffff;
+  }
 }

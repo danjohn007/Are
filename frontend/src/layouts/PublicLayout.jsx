@@ -5,7 +5,7 @@ import WhatsAppFloat from '../components/WhatsAppFloat';
 
 export default function PublicLayout() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-isabelline text-arsenic">
       <Navbar />
       <main>
         <Outlet />

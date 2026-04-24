@@ -1,5 +1,5 @@
 export default function WhatsAppFloat() {
-  const phone = import.meta.env.VITE_WHATSAPP_NUMBER || '+5491155554444';
+  const phone = import.meta.env.VITE_WHATSAPP_NUMBER || '+524427070872';
   const message = encodeURIComponent('¡Hola! Quiero más información sobre tus servicios inmobiliarios.');
   const link = `https://wa.me/${phone.replace(/[^\d]/g, '')}?text=${message}`;
   const iconSrc = `${import.meta.env.BASE_URL}whatsapp-icon.svg`;

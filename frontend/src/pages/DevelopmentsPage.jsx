@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
+import { getAllPaginated } from '../services/api';
 import PropertyCard from '../components/PropertyCard';
 
 export default function DevelopmentsPage() {
@@ -8,8 +8,10 @@ export default function DevelopmentsPage() {
 
   useEffect(() => {
     async function fetchDevelopments() {
-      const response = await api.get('/properties?listing_kind=development&limit=30&page=1');
-      setDevelopments(response.data.data || []);
+      const data = await getAllPaginated('/properties', {
+        listing_kind: 'development'
+      });
+      setDevelopments(data);
     }
 
     fetchDevelopments();

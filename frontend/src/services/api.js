@@ -39,4 +39,30 @@ api.interceptors.response.use(
   }
 );
 
+export async function getAllPaginated(endpoint, params = {}, pageSize = 100) {
+  const collected = [];
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const response = await api.get(endpoint, {
+      params: {
+        ...params,
+        page,
+        limit: pageSize
+      }
+    });
+
+    const payload = response.data || {};
+    const data = Array.isArray(payload.data) ? payload.data : [];
+    const meta = payload.meta || {};
+
+    collected.push(...data);
+    totalPages = Math.max(Number(meta.totalPages || 1), 1);
+    page += 1;
+  } while (page <= totalPages);
+
+  return collected;
+}
+
 export default api;

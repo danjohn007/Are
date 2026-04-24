@@ -139,14 +139,14 @@ export default function PropertyDetailPage() {
   ].filter(([, value]) => value !== null && value !== undefined && value !== '' && value !== 'No disponible');
 
   return (
-    <section className="section-shell py-12">
+    <section className="section-shell py-14 lg:py-16">
       <Link to={backPath} className="mb-6 inline-flex text-sm font-semibold text-brand-700 transition hover:text-brand-500">
         {backLabel}
       </Link>
 
-      <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="space-y-4 overflow-hidden rounded-[2rem] border border-gray-100 bg-white p-4 shadow-sm md:p-5">
-          <div className="relative overflow-hidden rounded-[1.5rem] bg-slate-100">
+      <div className="grid items-start gap-8 lg:grid-cols-2 xl:gap-10">
+        <div className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
+          <div className="relative overflow-hidden bg-slate-100">
             <img
               src={activeImage}
               alt={item.title}
@@ -171,114 +171,101 @@ export default function PropertyDetailPage() {
                 >
                   ›
                 </button>
-                <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 rounded-full bg-slate-950/55 px-3 py-2 backdrop-blur-sm">
-                  {photos.map((photo, index) => {
-                    const image = photo.original || photo.image || photo.thumb || fallbackImage;
-                    const isCurrent = image === activeImage;
-
-                    return (
-                      <button
-                        key={`${image}-dot-${index}`}
-                        type="button"
-                        onClick={() => setActiveIndex(index)}
-                        aria-label={`Ir a imagen ${index + 1}`}
-                        className={`h-2.5 rounded-full transition ${isCurrent ? 'w-8 bg-white' : 'w-2.5 bg-white/55 hover:bg-white/80'}`}
-                      />
-                    );
-                  })}
-                </div>
               </>
             )}
           </div>
 
-          {photos.length > 1 && (
-            <div className="grid grid-cols-4 gap-3 md:grid-cols-5">
-              {photos.map((photo, index) => {
-                const image = photo.thumb || photo.image || photo.original;
-                const original = photo.original || photo.image || image;
-                const isActive = normalizedActiveIndex === index;
+          <div className="space-y-6 p-6 md:p-7">
+            {detailEntries.length > 0 && (
+              <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm">
+                <h2 className="font-heading text-xl font-bold text-slate-950">Detalles de la propiedad</h2>
+                <div className="mt-4 grid gap-3 rounded-2xl bg-gray-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
+                  {detailEntries.map(([label, value]) => (
+                    <div key={label} className="rounded-xl bg-white px-4 py-3 shadow-sm">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">{label}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-                return (
-                  <button
-                    key={`${original}-${index}`}
-                    type="button"
-                    onClick={() => setActiveIndex(index)}
-                    className={`overflow-hidden rounded-2xl border transition ${isActive ? 'border-brand-500 ring-2 ring-brand-200' : 'border-gray-200 hover:border-brand-300'}`}
-                  >
-                    <img src={image} alt={`${item.title} ${index + 1}`} className="h-20 w-full object-cover" />
-                  </button>
-                );
-              })}
-            </div>
-          )}
+            {generalInfo.length > 0 && (
+              <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm">
+                <h2 className="font-heading text-xl font-bold text-slate-950">Informacion general</h2>
+                <div className="mt-4 grid gap-3 rounded-2xl bg-gray-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
+                  {generalInfo.map(([label, value]) => (
+                    <div key={label} className="rounded-xl bg-white px-4 py-3 shadow-sm">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">{label}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
         </div>
 
-        <div className="space-y-6">
-          <div className="rounded-[2rem] border border-gray-100 bg-white p-8 shadow-sm">
-          <span className={`inline-flex rounded-full px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] ${badgeClass}`}>
-            {badgeLabel}
-          </span>
-          <h1 className="mt-5 font-heading text-3xl font-black text-slate-950 md:text-4xl">{item.title}</h1>
-          <p className="mt-3 text-base text-gray-500">{item.address || item.city || 'Ubicacion no disponible'}</p>
+        <div className="space-y-6 lg:space-y-7">
+          <div className="rounded-[2rem] border border-gray-100 bg-white p-7 shadow-sm md:p-8">
+            <span className={`inline-flex rounded-full px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] ${badgeClass}`}>
+              {badgeLabel}
+            </span>
+            <h1 className="mt-5 font-heading text-3xl font-black text-slate-950 md:text-4xl">{item.title}</h1>
+            <p className="mt-3 text-base text-gray-500">{item.address || item.city || 'Ubicacion no disponible'}</p>
 
-          {item.location_full && item.location_full !== item.address && (
-            <p className="mt-2 text-sm text-gray-500">{item.location_full}</p>
-          )}
+            {item.location_full && item.location_full !== item.address && (
+              <p className="mt-2 text-sm text-gray-500">{item.location_full}</p>
+            )}
 
-          <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-600">
-            <span className="rounded-full bg-gray-100 px-4 py-2">Ciudad: {item.city || 'No disponible'}</span>
-            <span className="rounded-full bg-gray-100 px-4 py-2">Terreno: {Number(item.area || 0).toLocaleString('es-MX')} m²</span>
-            <span className="rounded-full bg-gray-100 px-4 py-2">Recamaras: {item.bedrooms || 0}</span>
-            <span className="rounded-full bg-gray-100 px-4 py-2">Banos: {item.bathrooms || 0}</span>
+            <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-600">
+              <span className="rounded-full bg-gray-100 px-4 py-2">Ciudad: {item.city || 'No disponible'}</span>
+              <span className="rounded-full bg-gray-100 px-4 py-2">Terreno: {Number(item.area || 0).toLocaleString('es-MX')} m²</span>
+              <span className="rounded-full bg-gray-100 px-4 py-2">Recamaras: {item.bedrooms || 0}</span>
+              <span className="rounded-full bg-gray-100 px-4 py-2">Banos: {item.bathrooms || 0}</span>
+            </div>
+
+            <div className="mt-8 rounded-2xl bg-slate-950 px-6 py-5 text-white">
+              <p className="text-xs uppercase tracking-[0.3em] text-gray-300">Precio</p>
+              <p className="mt-2 text-3xl font-black text-white">
+                {displayPrice}
+              </p>
+            </div>
+
+            {item.details?.public_url && (
+              <a
+                href={item.details.public_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-8 inline-flex rounded-xl border border-slate-300 px-6 py-3 font-semibold text-slate-800 transition hover:bg-slate-50"
+              >
+                Ver ficha original
+              </a>
+            )}
+
+            <Link
+              to="/contact"
+              className="mt-4 inline-flex rounded-xl bg-brand-500 px-6 py-3 font-semibold text-white transition hover:bg-brand-700"
+            >
+              Solicitar informacion
+            </Link>
           </div>
 
-          <div className="mt-8 rounded-2xl bg-slate-950 px-6 py-5 text-white">
-            <p className="text-xs uppercase tracking-[0.3em] text-gray-300">Precio</p>
-            <p className="mt-2 text-3xl font-black text-white">
-              {displayPrice}
-            </p>
-          </div>
-
-          {detailEntries.length > 0 && (
-            <div className="mt-8 grid gap-3 rounded-2xl bg-gray-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
-              {detailEntries.map(([label, value]) => (
-                <div key={label} className="rounded-xl bg-white px-4 py-3 shadow-sm">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">{label}</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {generalInfo.length > 0 && (
-            <div className="mt-8">
-              <h2 className="font-heading text-xl font-bold text-slate-950">Informacion general</h2>
-              <div className="mt-4 grid gap-3 rounded-2xl bg-gray-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
-                {generalInfo.map(([label, value]) => (
-                  <div key={label} className="rounded-xl bg-white px-4 py-3 shadow-sm">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">{label}</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
-                  </div>
-                ))}
+          {(item.details?.branch?.name || item.details?.branch?.email || item.details?.branch?.phone || item.details?.branch?.address) && (
+            <aside className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
+              <h3 className="font-heading text-xl font-bold text-slate-950">Contacto</h3>
+              <div className="mt-4 space-y-2 text-sm text-slate-700">
+                {item.details?.branch?.name && <p className="font-semibold text-slate-900">{item.details.branch.name}</p>}
+                {item.details?.branch?.email && <p>{item.details.branch.email}</p>}
+                {item.details?.branch?.phone && <p>{item.details.branch.phone}</p>}
+                {item.details?.branch?.contact_time && <p>{item.details.branch.contact_time}</p>}
+                {item.details?.branch?.address && <p>{item.details.branch.address}</p>}
               </div>
-            </div>
+            </aside>
           )}
 
-          {surfaces.length > 0 && (
-            <div className="mt-8">
-              <h2 className="font-heading text-xl font-bold text-slate-950">Superficies y medidas</h2>
-              <div className="mt-4 grid gap-3 rounded-2xl bg-gray-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
-                {surfaces.map(([label, value]) => (
-                  <div key={label} className="rounded-xl bg-white px-4 py-3 shadow-sm">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">{label}</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-8">
+          <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
             <h2 className="font-heading text-xl font-bold text-slate-950">Descripcion</h2>
             <p className="mt-3 whitespace-pre-line text-base leading-7 text-gray-700">
               {showFullDescription ? (item.description || 'Sin descripcion disponible por el momento.') : (shortDescription || 'Sin descripcion disponible por el momento.')}
@@ -292,10 +279,24 @@ export default function PropertyDetailPage() {
                 {showFullDescription ? 'Mostrar menos' : 'Mostrar mas'}
               </button>
             )}
-          </div>
+          </section>
+
+          {surfaces.length > 0 && (
+            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
+              <h2 className="font-heading text-xl font-bold text-slate-950">Superficies y medidas</h2>
+              <div className="mt-4 grid gap-3 rounded-2xl bg-gray-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
+                {surfaces.map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-white px-4 py-3 shadow-sm">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">{label}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {item.tags?.length > 0 && (
-            <div className="mt-8">
+            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
               <h2 className="font-heading text-xl font-bold text-slate-950">Amenidades y caracteristicas</h2>
               <div className="mt-4 flex flex-wrap gap-2">
                 {item.tags.map((tag) => (
@@ -304,11 +305,11 @@ export default function PropertyDetailPage() {
                   </span>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
           {item.videos?.length > 0 && (
-            <div className="mt-8">
+            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
               <h2 className="font-heading text-xl font-bold text-slate-950">Videos</h2>
               <div className="mt-4 space-y-3">
                 {item.videos.map((video) => (
@@ -323,11 +324,11 @@ export default function PropertyDetailPage() {
                   </a>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
           {item.files?.length > 0 && (
-            <div className="mt-8">
+            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
               <h2 className="font-heading text-xl font-bold text-slate-950">Archivos</h2>
               <div className="mt-4 space-y-3">
                 {item.files.map((file, index) => (
@@ -342,43 +343,11 @@ export default function PropertyDetailPage() {
                   </a>
                 ))}
               </div>
-            </div>
-          )}
-
-          {item.details?.public_url && (
-            <a
-              href={item.details.public_url}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-8 inline-flex rounded-xl border border-slate-300 px-6 py-3 font-semibold text-slate-800 transition hover:bg-slate-50"
-            >
-              Ver ficha original
-            </a>
-          )}
-
-          <Link
-            to="/contact"
-            className="mt-4 inline-flex rounded-xl bg-brand-500 px-6 py-3 font-semibold text-white transition hover:bg-brand-700"
-          >
-            Solicitar informacion
-          </Link>
-          </div>
-
-          {(item.details?.branch?.name || item.details?.branch?.email || item.details?.branch?.phone || item.details?.branch?.address) && (
-            <aside className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm">
-              <h3 className="font-heading text-xl font-bold text-slate-950">Contacto</h3>
-              <div className="mt-4 space-y-2 text-sm text-slate-700">
-                {item.details?.branch?.name && <p className="font-semibold text-slate-900">{item.details.branch.name}</p>}
-                {item.details?.branch?.email && <p>{item.details.branch.email}</p>}
-                {item.details?.branch?.phone && <p>{item.details.branch.phone}</p>}
-                {item.details?.branch?.contact_time && <p>{item.details.branch.contact_time}</p>}
-                {item.details?.branch?.address && <p>{item.details.branch.address}</p>}
-              </div>
-            </aside>
+            </section>
           )}
 
           {mapUrl && (
-            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm">
+            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h3 className="font-heading text-xl font-bold text-slate-950">Ubicacion</h3>
                 {mapLink && (

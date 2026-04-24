@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../services/api';
+import { getAllPaginated } from '../services/api';
 import PropertyCard from '../components/PropertyCard';
 
 export default function PropertiesPage() {
@@ -8,11 +8,11 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     async function fetchProperties() {
-      const params = filter
-        ? `?listing_kind=property&operation_type=${filter}&limit=30&page=1`
-        : '?listing_kind=property&limit=30&page=1';
-      const response = await api.get(`/properties${params}`);
-      setProperties(response.data.data);
+      const data = await getAllPaginated('/properties', {
+        listing_kind: 'property',
+        ...(filter ? { operation_type: filter } : {})
+      });
+      setProperties(data);
     }
 
     fetchProperties();

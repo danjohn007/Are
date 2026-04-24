@@ -17,12 +17,12 @@ export default function Navbar() {
   const logoSrc = `${import.meta.env.BASE_URL}color_are.png`;
 
   return (
-    <header className="sticky top-0 z-30 bg-white shadow-sm">
+    <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm">
       {/* Top bar */}
-      <div className="hidden border-b border-gray-100 bg-slate-950 md:block">
+      <div className="hidden border-b border-gray-200 surface-dark md:block">
         <div className="section-shell flex items-center justify-between py-1.5 text-xs text-gray-300">
           <span>Bienvenido a ARE — Especialistas en Bienes Raíces</span>
-          <span>contacto@are.mx</span>
+          <span>info@are.mx</span>
         </div>
       </div>
 
@@ -45,7 +45,7 @@ export default function Navbar() {
               to={item.to}
               end={item.to === '/'}
               className={({ isActive }) =>
-                `text-sm font-semibold uppercase tracking-wide transition ${
+                `font-subheading text-sm uppercase tracking-[0.16em] transition ${
                   isActive ? 'text-brand-500' : 'text-slate-700 hover:text-brand-500'
                 }`
               }
@@ -60,14 +60,14 @@ export default function Navbar() {
           {isAuthenticated && (
             <Link
               to="/admin"
-              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+              className="rounded-lg bg-brand-500 px-4 py-2 text-sm text-white transition hover:bg-brand-700"
             >
               Panel Admin
             </Link>
           )}
           <Link
             to="/contact"
-            className="hidden rounded-lg border border-brand-500 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-50 md:block"
+            className="hidden rounded-lg border border-brand-500 px-4 py-2 text-sm text-brand-700 transition hover:bg-brand-50 md:block"
           >
             Cotizar
           </Link>
@@ -95,7 +95,7 @@ export default function Navbar() {
               end={item.to === '/'}
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
-                `block py-3 text-sm font-semibold uppercase tracking-wide ${
+                `font-subheading block py-3 text-sm uppercase tracking-[0.16em] ${
                   isActive ? 'text-brand-500' : 'text-slate-700'
                 }`
               }
