@@ -30,6 +30,7 @@ return [
     'tokko' => [
         'url' => 'https://www.tokkobroker.com/api/v1/property/',
         'development_url' => 'https://www.tokkobroker.com/api/v1/development/',
-        'api_key' => 'a4dd876fb2557468e4190264db2812c2ee9f2e84'
+        'api_key' => 'a4dd876fb2557468e4190264db2812c2ee9f2e84',
+        'force_pending' => false
     ]
 ];

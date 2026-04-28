@@ -5,13 +5,24 @@ import PropertyCard from '../components/PropertyCard';
 
 export default function DevelopmentsPage() {
   const [developments, setDevelopments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function fetchDevelopments() {
-      const data = await getAllPaginated('/properties', {
-        listing_kind: 'development'
-      });
-      setDevelopments(data);
+      try {
+        setLoading(true);
+        setError('');
+        const data = await getAllPaginated('/properties', {
+          listing_kind: 'development'
+        });
+        setDevelopments(data);
+      } catch (_error) {
+        setDevelopments([]);
+        setError('No pudimos cargar desarrollos en este momento. Revisa la URL del API en producción.');
+      } finally {
+        setLoading(false);
+      }
     }
 
     fetchDevelopments();
@@ -26,7 +37,15 @@ export default function DevelopmentsPage() {
         </p>
       </div>
 
-      {developments.length === 0 ? (
+      {loading ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-600">
+          Cargando desarrollos...
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-red-700">
+          {error}
+        </div>
+      ) : developments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-600">
           Aun no hay desarrollos sincronizados. Cuando ejecutes la sincronizacion de Tokko, apareceran aqui automaticamente.
         </div>
@@ -40,7 +59,7 @@ export default function DevelopmentsPage() {
 
       <div className="mt-12 rounded-2xl bg-slate-950 px-6 py-10 text-center text-white">
         <h3 className="font-heading text-2xl font-black text-white">¿Buscas un desarrollo puntual?</h3>
-        <p className="mx-auto mt-3 max-w-2xl text-gray-300">
+        <p className="mx-auto mt-3 max-w-2xl text-white/90">
           Te ayudamos a comparar opciones por etapa, ticket de inversion, rentabilidad estimada y perfil de riesgo.
         </p>
         <Link

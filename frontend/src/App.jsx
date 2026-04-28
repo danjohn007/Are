@@ -9,6 +9,7 @@ import PropertiesPage from './pages/PropertiesPage';
 import DevelopmentsPage from './pages/DevelopmentsPage';
 import PropertyDetailPage from './pages/PropertyDetailPage';
 import NewsPage from './pages/NewsPage';
+import BlogArticlePage from './pages/BlogArticlePage';
 import ContactPage from './pages/ContactPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -35,6 +36,8 @@ export default function App() {
         <Route path="/developments/:id" element={<PropertyDetailPage />} />
         <Route path="/blog" element={<NewsPage />} />
         <Route path="/news" element={<NewsPage />} />
+        <Route path="/blog/:slug" element={<BlogArticlePage />} />
+        <Route path="/news/:slug" element={<BlogArticlePage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route

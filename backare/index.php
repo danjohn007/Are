@@ -229,9 +229,42 @@ try {
 
         send_whatsapp($input['phone'], 'Hola ' . $lead['name'] . ', recibimos tu solicitud. Te contactaremos pronto. — ARE');
 
+        // Reenviar el contacto directamente a Tokko Broker CRM
+        // Necesitamos el tokko_id real (no el id local) para que Tokko vincule la consulta a la propiedad correcta
+        $tokkoRemoteId = null;
+        $tokkoListingKind = 'property';
+        if (!empty($input['property_id'])) {
+            $qProp = db()->prepare('SELECT tokko_id, listing_kind FROM properties WHERE id = :id LIMIT 1');
+            $qProp->execute([':id' => (int)$input['property_id']]);
+            $propRow = $qProp->fetch();
+            if ($propRow) {
+                $tokkoListingKind = (string)($propRow['listing_kind'] ?? 'property');
+                $tokkoRawId = (string)($propRow['tokko_id'] ?? '');
+
+                // Sync stores ids like "property:12345" or "development:12345"
+                if (strpos($tokkoRawId, ':') !== false) {
+                    $parts = explode(':', $tokkoRawId, 2);
+                    if (isset($parts[1]) && ctype_digit($parts[1])) {
+                        $tokkoRemoteId = (int)$parts[1];
+                    }
+                } elseif (ctype_digit($tokkoRawId)) {
+                    $tokkoRemoteId = (int)$tokkoRawId;
+                }
+            }
+        }
+
+        $tokkoOk = tokko_send_contact(
+            $lead['name'],
+            $input['email'],
+            $input['phone'],
+            $input['message'] ?? null,
+            $tokkoRemoteId,
+            $tokkoListingKind
+        );
+
         $lead['email'] = $input['email'];
         $lead['phone'] = $input['phone'];
-        respond(201, ['success' => true, 'data' => $lead]);
+        respond(201, ['success' => true, 'data' => $lead, 'tokko_forwarded' => $tokkoOk]);
     }
 
     if ($path === '/leads' && $method === 'GET') {

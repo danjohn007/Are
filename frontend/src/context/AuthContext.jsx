@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 
 const AuthContext = createContext(null);
@@ -28,6 +28,16 @@ export function AuthProvider({ children }) {
     setUser(null);
     setIsAuthenticated(false);
   }
+
+  useEffect(() => {
+    function handleForcedLogout() {
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+
+    window.addEventListener('auth:logout', handleForcedLogout);
+    return () => window.removeEventListener('auth:logout', handleForcedLogout);
+  }, []);
 
   const value = useMemo(
     () => ({ user, isAuthenticated, login, logout }),

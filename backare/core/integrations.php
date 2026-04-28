@@ -150,6 +150,85 @@ function ensure_property_columns(): void
     $ensured = true;
 }
 
+/**
+ * Envía un contacto/lead directamente a Tokko Broker via su API.
+ * Falla silenciosamente para no bloquear el guardado local del lead.
+ *
+ * @param string      $name        Nombre completo del contacto
+ * @param string      $email       Correo electrónico
+ * @param string      $phone       Teléfono
+ * @param string|null $message     Mensaje del contacto
+ * @param int|null    $property_id ID de propiedad Tokko (opcional)
+ * @return bool  true si Tokko respondió 2xx, false en cualquier otro caso
+ */
+function tokko_send_contact(
+    string $name,
+    string $email,
+    string $phone,
+    ?string $message = null,
+    ?int $remote_id = null,
+    string $listing_kind = 'property'
+): bool {
+    $cfg = app_config()['tokko'];
+    if (empty($cfg['api_key'])) {
+        return false;
+    }
+
+    $baseUrl = 'https://www.tokkobroker.com/api/v1/webcontact/';
+    $url     = $baseUrl . '?key=' . urlencode($cfg['api_key']);
+
+    // Tokko usa 'text' para el mensaje y 'properties' (array) para vincular propiedad
+    $text = $message ?? '';
+    $forcePending = (bool)($cfg['force_pending'] ?? false);
+    if ($forcePending && $remote_id !== null) {
+        $text = trim($text . "\n\nReferencia {$listing_kind} Tokko ID: {$remote_id}");
+    }
+
+    $payload = [
+        'name'      => $name,
+        'email'     => $email,
+        'phone'     => $phone,
+        'cellphone' => $phone,
+        'text'      => $text,
+        'tags'      => ['ARE Inmobiliaria', 'web-contacto'],
+    ];
+
+    if (!$forcePending && $remote_id !== null) {
+        if ($listing_kind === 'development') {
+            $payload['developments'] = [$remote_id];
+        } else {
+            $payload['properties'] = [$remote_id];
+        }
+    }
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        error_log('[tokko_send_contact] cURL error: ' . $curlErr);
+        return false;
+    }
+
+    if ($httpCode < 200 || $httpCode >= 300) {
+        error_log('[tokko_send_contact] HTTP ' . $httpCode . ' — ' . $response);
+        return false;
+    }
+
+    return true;
+}
+
 function tokko_sync(): array
 {
     $cfg = app_config()['tokko'];

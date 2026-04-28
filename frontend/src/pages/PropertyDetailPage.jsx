@@ -227,7 +227,7 @@ export default function PropertyDetailPage() {
             </div>
 
             <div className="mt-8 rounded-2xl bg-slate-950 px-6 py-5 text-white">
-              <p className="text-xs uppercase tracking-[0.3em] text-gray-300">Precio</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-white/85">Precio</p>
               <p className="mt-2 text-3xl font-black text-white">
                 {displayPrice}
               </p>
@@ -245,7 +245,7 @@ export default function PropertyDetailPage() {
             )}
 
             <Link
-              to="/contact"
+              to={`/contact?property_id=${item.id}&property_title=${encodeURIComponent(item.title || 'esta propiedad')}`}
               className="mt-4 inline-flex rounded-xl bg-brand-500 px-6 py-3 font-semibold text-white transition hover:bg-brand-700"
             >
               Solicitar informacion

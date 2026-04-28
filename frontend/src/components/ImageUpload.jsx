@@ -1,11 +1,21 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import api from '../services/api';
-import { FolderOpen, Loader2 } from 'lucide-react';
+import { FolderOpen, Loader2, Trash2 } from 'lucide-react';
 
 export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
   const [preview, setPreview] = useState(value || '');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const inputRef = useRef(null);
+
+  function clearImage() {
+    setPreview('');
+    setError('');
+    onChange('');
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+  }
 
   async function handleFile(e) {
     const file = e.target.files[0];
@@ -48,6 +58,7 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
             : <span className="flex items-center gap-1"><FolderOpen size={14} /> Elegir imagen</span>
           }
           <input
+            ref={inputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
             className="hidden"
@@ -56,12 +67,20 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
           />
         </label>
         {preview && (
-          <div className="relative">
+          <div className="relative flex items-center gap-2">
             <img
               src={preview}
               alt="Vista previa"
               className="h-16 w-24 rounded-lg border object-cover shadow-sm"
             />
+            <button
+              type="button"
+              onClick={clearImage}
+              disabled={uploading}
+              className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2 size={13} /> Eliminar
+            </button>
           </div>
         )}
         {!preview && (

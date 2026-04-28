@@ -5,14 +5,25 @@ import PropertyCard from '../components/PropertyCard';
 export default function PropertiesPage() {
   const [properties, setProperties] = useState([]);
   const [filter, setFilter] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     async function fetchProperties() {
-      const data = await getAllPaginated('/properties', {
-        listing_kind: 'property',
-        ...(filter ? { operation_type: filter } : {})
-      });
-      setProperties(data);
+      try {
+        setLoading(true);
+        setError('');
+        const data = await getAllPaginated('/properties', {
+          listing_kind: 'property',
+          ...(filter ? { operation_type: filter } : {})
+        });
+        setProperties(data);
+      } catch (_error) {
+        setProperties([]);
+        setError('No pudimos cargar propiedades en este momento. Revisa la URL del API en producción.');
+      } finally {
+        setLoading(false);
+      }
     }
 
     fetchProperties();
@@ -52,11 +63,25 @@ export default function PropertiesPage() {
         </button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {properties.map((property) => (
-          <PropertyCard key={property.id} property={property} />
-        ))}
-      </div>
+      {loading ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-600">
+          Cargando propiedades...
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-red-700">
+          {error}
+        </div>
+      ) : properties.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-600">
+          No hay propiedades para los filtros seleccionados.
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {properties.map((property) => (
+            <PropertyCard key={property.id} property={property} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
