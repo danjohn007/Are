@@ -92,6 +92,18 @@ npm --prefix frontend run dev
 
 php /home/USER/public_html/backcrm/tokko_sync.php
 
+### Tokko Sync Each 15 Minutes
+
+Production cron expression (cPanel):
+
+*/15 * * * * php /home/USER/public_html/backare/tokko_sync.php
+
+Local/VM execution without browser:
+
+```bash
+npm run tokko:sync
+```
+
 ## Default Admin Access
 
 - Email: `admin@portal.com`

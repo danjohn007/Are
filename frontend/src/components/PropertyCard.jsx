@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { MapPin, BedDouble, Bath } from 'lucide-react';
 
 export default function PropertyCard({ property }) {
   const operationBadgeColor = property.operation_type === 'renta' ? 'bg-green-500' : 'bg-orange-500';
@@ -32,9 +33,9 @@ export default function PropertyCard({ property }) {
             <span className="text-xl font-bold text-brand-600">${Number(property.price || 0).toLocaleString('es-MX')} MXN</span>
           </div>
           <div className="flex gap-4 text-xs text-gray-600">
-            <span>📍 {property.area} m²</span>
-            <span>🛏️ {property.bedrooms} Recámaras</span>
-            <span>🚿 {property.bathrooms} Baños</span>
+            <span className="flex items-center gap-1"><MapPin size={13} /> {property.area} m²</span>
+            <span className="flex items-center gap-1"><BedDouble size={13} /> {property.bedrooms} Rec.</span>
+            <span className="flex items-center gap-1"><Bath size={13} /> {property.bathrooms} Baños</span>
           </div>
         </div>
         <Link

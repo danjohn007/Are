@@ -30,7 +30,7 @@ export default function Footer() {
             />
           </div>
           <p className="mt-4 text-sm leading-relaxed">
-            Especialistas en bienes raíces con más de 12 años conectando personas con los mejores inmuebles.
+            Especialistas en bienes raíces con más de 25 años conectando personas con los mejores inmuebles.
           </p>
         </div>
 

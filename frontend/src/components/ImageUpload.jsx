@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../services/api';
+import { FolderOpen, Loader2 } from 'lucide-react';
 
 export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
   const [preview, setPreview] = useState(value || '');
@@ -42,7 +43,10 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
           className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-2 text-sm transition
             ${uploading ? 'border-gray-200 text-gray-400' : 'border-brand-500 text-brand-700 hover:bg-brand-50'}`}
         >
-          {uploading ? '⏳ Subiendo...' : '📁 Elegir imagen'}
+          {uploading
+            ? <span className="flex items-center gap-1"><Loader2 size={14} className="animate-spin" /> Subiendo...</span>
+            : <span className="flex items-center gap-1"><FolderOpen size={14} /> Elegir imagen</span>
+          }
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"

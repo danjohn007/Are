@@ -6,7 +6,8 @@
     "install:all": "npm install && npm --prefix frontend install",
     "dev": "concurrently \"php -S localhost:8000 -t backare\" \"npm --prefix frontend run dev\"",
     "dev:backend": "php -S localhost:8000 -t backare",
-    "dev:frontend": "npm --prefix frontend run dev"
+    "dev:frontend": "npm --prefix frontend run dev",
+    "tokko:sync": "php ./backare/tokko_sync.php"
   },
   "devDependencies": {
     "concurrently": "^9.0.1"

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../services/api';
+import { Send, Loader2 } from 'lucide-react';
 
 export default function DynamicLeadForm({ service, onSuccess }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
@@ -121,7 +122,10 @@ export default function DynamicLeadForm({ service, onSuccess }) {
         disabled={loading}
         className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white disabled:opacity-60 hover:bg-brand-600"
       >
-        {loading ? '⏳ Enviando...' : '✉️ Enviar solicitud'}
+        {loading
+          ? <span className="flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin" /> Enviando...</span>
+          : <span className="flex items-center justify-center gap-2"><Send size={16} /> Enviar solicitud</span>
+        }
       </button>
     </form>
   );

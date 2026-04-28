@@ -39,7 +39,7 @@ export default function DevelopmentsPage() {
       )}
 
       <div className="mt-12 rounded-2xl bg-slate-950 px-6 py-10 text-center text-white">
-        <h3 className="font-heading text-2xl font-black">Buscas un desarrollo puntual?</h3>
+        <h3 className="font-heading text-2xl font-black text-white">¿Buscas un desarrollo puntual?</h3>
         <p className="mx-auto mt-3 max-w-2xl text-gray-300">
           Te ayudamos a comparar opciones por etapa, ticket de inversion, rentabilidad estimada y perfil de riesgo.
         </p>

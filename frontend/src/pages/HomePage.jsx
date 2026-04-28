@@ -1,30 +1,31 @@
 import { Link } from 'react-router-dom';
+import { Home, ClipboardList, BarChart2, Zap } from 'lucide-react';
 
 const stats = [
   { value: '500+', label: 'Propiedades activas' },
-  { value: '12+', label: 'Años de experiencia' },
+  { value: '+25', label: 'Años de experiencia' },
   { value: '1,200+', label: 'Clientes satisfechos' },
   { value: '98%', label: 'Tasa de cierre' },
 ];
 
 const features = [
   {
-    icon: '🏠',
+    icon: Home,
     title: 'Venta y Renta',
     desc: 'Catálogo actualizado de propiedades residenciales y comerciales en las mejores zonas.',
   },
   {
-    icon: '📋',
+    icon: ClipboardList,
     title: 'Asesoría Personalizada',
     desc: 'Nuestros asesores te guían en cada paso del proceso de compra, venta o renta.',
   },
   {
-    icon: '📊',
+    icon: BarChart2,
     title: 'Valuación de Inmuebles',
     desc: 'Estimamos el valor real de tu propiedad con estudios de mercado actualizados.',
   },
   {
-    icon: '⚡',
+    icon: Zap,
     title: 'Gestión Rápida',
     desc: 'Procesos ágiles, contratos claros y seguimiento puntual para cerrar en el menor tiempo.',
   },
@@ -44,7 +45,7 @@ export default function HomePage() {
             <span className="font-subheading mb-4 inline-block rounded-full border border-brand-500 px-4 py-1.5 text-xs uppercase tracking-[0.22em] text-brand-100">
               Bienes Raíces — México
             </span>
-            <h1 className="font-heading text-4xl font-black leading-tight md:text-6xl">
+            <h1 className="font-heading text-4xl font-black leading-tight text-white md:text-6xl">
               Tu próxima propiedad<br />
               <span className="text-brand-500">comienza aquí.</span>
             </h1>
@@ -103,7 +104,7 @@ export default function HomePage() {
                 data-aos="fade-up"
                 className="surface-panel group rounded-2xl p-8 transition hover:border-brand-500 hover:shadow-md"
               >
-                <span className="text-4xl">{f.icon}</span>
+                <f.icon size={36} className="text-brand-500" />
                 <h3 className="mt-4 font-heading text-lg font-bold text-slate-950">{f.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-gray-500">{f.desc}</p>
               </div>

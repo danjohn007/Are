@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ImageUpload from '../components/ImageUpload';
+import {
+  Inbox, Sparkles, Phone, CheckCircle, Home,
+  Mail, Smartphone, Settings, Calendar, MessageCircle,
+  Trash2, Save, Tag, Key, PhoneCall, MousePointerClick, X
+} from 'lucide-react';
 
 const initialProperty = { title: '', description: '', price: 0, address: '', city: '', bedrooms: 0, bathrooms: 0, area: 0, image_url: '', operation_type: 'venta' };
 const initialService = { name: '', slug: '', description: '', price: 0 };
@@ -133,11 +138,11 @@ export default function DashboardPage() {
       {tab === 'metrics' && (
         <div>
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <MetricCard title="Total Leads" value={metrics?.totals?.total || 0} icon="📬" />
-            <MetricCard title="Nuevos" value={metrics?.totals?.new_count || 0} icon="✨" />
-            <MetricCard title="Contactados" value={metrics?.totals?.contacted_count || 0} icon="☎️" />
-            <MetricCard title="Cerrados" value={metrics?.totals?.closed_count || 0} icon="✅" />
-            <MetricCard title="Propiedades" value={metrics?.totals?.total_properties || 0} icon="🏠" />
+            <MetricCard title="Total Leads" value={metrics?.totals?.total || 0} icon={Inbox} />
+            <MetricCard title="Nuevos" value={metrics?.totals?.new_count || 0} icon={Sparkles} />
+            <MetricCard title="Contactados" value={metrics?.totals?.contacted_count || 0} icon={Phone} />
+            <MetricCard title="Cerrados" value={metrics?.totals?.closed_count || 0} icon={CheckCircle} />
+            <MetricCard title="Propiedades" value={metrics?.totals?.total_properties || 0} icon={Home} />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
@@ -208,7 +213,7 @@ export default function DashboardPage() {
           <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
             {!selectedLead ? (
               <div className="flex flex-col items-center justify-center h-full py-20 text-center text-gray-400">
-                <span className="text-5xl mb-4">👆</span>
+                <MousePointerClick size={48} className="mb-4 text-gray-300" />
                 <p className="font-semibold">Selecciona una solicitud</p>
                 <p className="text-sm mt-1">para ver sus detalles</p>
               </div>
@@ -216,7 +221,7 @@ export default function DashboardPage() {
               <>
                 <div className="border-b bg-gray-50 px-6 py-4 flex items-center justify-between">
                   <h3 className="font-heading text-lg font-bold">Detalle de Solicitud</h3>
-                  <button onClick={() => setSelectedLead(null)} className="text-gray-400 hover:text-gray-700 text-xl font-bold" type="button">✕</button>
+                  <button onClick={() => setSelectedLead(null)} className="text-gray-400 hover:text-gray-700" type="button"><X size={20} /></button>
                 </div>
                 <div className="p-6 space-y-4">
                   {/* Avatar + nombre */}
@@ -234,13 +239,13 @@ export default function DashboardPage() {
 
                   {/* Datos de contacto */}
                   <div className="grid gap-3">
-                    <DetailRow icon="📧" label="Correo" value={selectedLead.email || '—'} />
-                    <DetailRow icon="📱" label="Teléfono" value={selectedLead.phone || '—'} />
-                    <DetailRow icon="⚙️" label="Servicio" value={selectedLead.service_name || '—'} />
-                    <DetailRow icon="🗓️" label="Fecha" value={new Date(selectedLead.created_at).toLocaleString('es-MX')} />
+                    <DetailRow icon={Mail} label="Correo" value={selectedLead.email || '—'} />
+                    <DetailRow icon={Smartphone} label="Teléfono" value={selectedLead.phone || '—'} />
+                    <DetailRow icon={Settings} label="Servicio" value={selectedLead.service_name || '—'} />
+                    <DetailRow icon={Calendar} label="Fecha" value={new Date(selectedLead.created_at).toLocaleString('es-MX')} />
                     {selectedLead.message && (
                       <div className="rounded-lg bg-gray-50 border p-3">
-                        <p className="text-xs font-semibold text-gray-500 mb-1">💬 Mensaje</p>
+                        <p className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1"><MessageCircle size={13} /> Mensaje</p>
                         <p className="text-sm text-slate-700">{selectedLead.message}</p>
                       </div>
                     )}
@@ -252,7 +257,7 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-xs font-semibold text-gray-500 mb-2">Actualizar estado</p>
                     <div className="flex gap-2 flex-wrap">
-                      {[['new', '✨ Nuevo'], ['contacted', '☎️ Contactado'], ['closed', '✅ Cerrado']].map(([val, label]) => (
+                      {[['new', 'Nuevo'], ['contacted', 'Contactado'], ['closed', 'Cerrado']].map(([val, label]) => (
                         <button
                           key={val}
                           type="button"
@@ -275,13 +280,13 @@ export default function DashboardPage() {
                   {/* Acciones rápidas */}
                   <div className="flex gap-2 pt-2">
                     {selectedLead.email && (
-                      <a href={`mailto:${selectedLead.email}`} className="flex-1 text-center rounded-lg bg-slate-800 text-white py-2 text-sm font-semibold hover:bg-slate-900">
-                        📧 Enviar correo
+                      <a href={`mailto:${selectedLead.email}`} className="flex-1 text-center rounded-lg bg-slate-800 text-white py-2 text-sm font-semibold hover:bg-slate-900 flex items-center justify-center gap-2">
+                        <Mail size={15} /> Enviar correo
                       </a>
                     )}
                     {selectedLead.phone && (
-                      <a href={`tel:${selectedLead.phone}`} className="flex-1 text-center rounded-lg bg-brand-500 text-white py-2 text-sm font-semibold hover:bg-brand-600">
-                        📞 Llamar
+                      <a href={`tel:${selectedLead.phone}`} className="flex-1 text-center rounded-lg bg-brand-500 text-white py-2 text-sm font-semibold hover:bg-brand-600 flex items-center justify-center gap-2">
+                        <PhoneCall size={15} /> Llamar
                       </a>
                     )}
                   </div>
@@ -363,16 +368,16 @@ export default function DashboardPage() {
                 value={propertyForm.operation_type}
                 onChange={(e) => setPropertyForm((prev) => ({ ...prev, operation_type: e.target.value }))}
               >
-                <option value="venta">🏷️ En Venta</option>
-                <option value="renta">🔑 En Renta</option>
+              <option value="venta">En Venta</option>
+              <option value="renta">En Renta</option>
               </select>
               <ImageUpload
                 value={propertyForm.image_url}
                 onChange={(url) => setPropertyForm((prev) => ({ ...prev, image_url: url }))}
                 label="Imagen de la propiedad"
               />
-              <button className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600" type="submit">
-                💾 Guardar Propiedad
+              <button className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600 flex items-center justify-center gap-2" type="submit">
+                <Save size={17} /> Guardar Propiedad
               </button>
             </form>
           </section>
@@ -389,10 +394,10 @@ export default function DashboardPage() {
                   </div>
                   <button
                     onClick={() => deleteProperty(prop.id)}
-                    className="text-red-500 hover:text-red-700 font-bold"
+                    className="text-red-500 hover:text-red-700"
                     type="button"
                   >
-                    🗑️
+                    <Trash2 size={18} />
                   </button>
                 </div>
               ))}
@@ -436,8 +441,8 @@ export default function DashboardPage() {
                 onChange={(e) => setServiceForm((prev) => ({ ...prev, price: Number(e.target.value) }))}
                 required
               />
-              <button className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600" type="submit">
-                💾 Guardar Servicio
+              <button className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600 flex items-center justify-center gap-2" type="submit">
+                <Save size={17} /> Guardar Servicio
               </button>
             </form>
           </section>
@@ -453,10 +458,10 @@ export default function DashboardPage() {
                   </div>
                   <button
                     onClick={() => deleteService(svc.id)}
-                    className="text-red-500 hover:text-red-700 font-bold"
+                    className="text-red-500 hover:text-red-700"
                     type="button"
                   >
-                    🗑️
+                    <Trash2 size={18} />
                   </button>
                 </div>
               ))}
@@ -505,8 +510,8 @@ export default function DashboardPage() {
                 onChange={(url) => setArticleForm((prev) => ({ ...prev, image_url: url }))}
                 label="Imagen de portada"
               />
-              <button className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600" type="submit">
-                💾 Guardar Noticia
+              <button className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600 flex items-center justify-center gap-2" type="submit">
+                <Save size={17} /> Guardar Noticia
               </button>
             </form>
           </section>
@@ -522,10 +527,10 @@ export default function DashboardPage() {
                   </div>
                   <button
                     onClick={() => deleteArticle(art.id)}
-                    className="text-red-500 hover:text-red-700 font-bold"
+                    className="text-red-500 hover:text-red-700"
                     type="button"
                   >
-                    🗑️
+                    <Trash2 size={18} />
                   </button>
                 </div>
               ))}
@@ -537,7 +542,7 @@ export default function DashboardPage() {
   );
 }
 
-function MetricCard({ title, value, icon }) {
+function MetricCard({ title, value, icon: Icon }) {
   return (
     <article className="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between">
@@ -545,7 +550,7 @@ function MetricCard({ title, value, icon }) {
           <p className="text-sm font-semibold text-gray-500">{title}</p>
           <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
         </div>
-        <span className="text-3xl">{icon}</span>
+        <span className="text-brand-500"><Icon size={28} /></span>
       </div>
     </article>
   );
@@ -565,10 +570,10 @@ function StatusBadge({ status }) {
   );
 }
 
-function DetailRow({ icon, label, value }) {
+function DetailRow({ icon: Icon, label, value }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="text-lg w-6 text-center shrink-0">{icon}</span>
+      <span className="w-6 shrink-0 text-gray-400 mt-0.5"><Icon size={18} /></span>
       <div>
         <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">{label}</p>
         <p className="text-sm text-slate-800 font-medium">{value}</p>
