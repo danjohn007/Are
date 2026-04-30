@@ -342,6 +342,7 @@ try {
 
     // ─── Propiedades ─────────────────────────────────────────────────────────
     if ($path === '/properties' && $method === 'GET') {
+        tokko_auto_sync();
         $city      = $_GET['city'] ?? null;
         $operation = $_GET['operation_type'] ?? null;
         $kind      = $_GET['listing_kind'] ?? null;
@@ -361,6 +362,9 @@ try {
         if ($kind) {
             $where[]               = 'listing_kind = :listing_kind';
             $params[':listing_kind'] = $kind;
+        } else {
+            // Units are only fetched through /properties/{id}/units, not the main list
+            $where[] = "listing_kind != 'unit'";
         }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -388,6 +392,17 @@ try {
         $rows = array_map('normalize_property_row', $stmt->fetchAll());
 
         respond(200, ['success' => true, 'data' => $rows, 'meta' => ['total' => $total, 'page' => $page, 'limit' => $limit, 'totalPages' => (int)ceil($total / $limit)]]);
+    }
+
+    if (preg_match('#^/properties/(\d+)/units$#', $path, $m) && $method === 'GET') {
+        $parent = db()->prepare('SELECT tokko_id FROM properties WHERE id = :id LIMIT 1');
+        $parent->execute([':id' => (int)$m[1]]);
+        $parentRow = $parent->fetch();
+        if (!$parentRow) { respond(404, ['success' => false, 'message' => 'Desarrollo no encontrado']); }
+        $stmt = db()->prepare("SELECT * FROM properties WHERE parent_tokko_id = :ptid ORDER BY price ASC, title ASC");
+        $stmt->execute([':ptid' => $parentRow['tokko_id']]);
+        $rows = array_map('normalize_property_row', $stmt->fetchAll());
+        respond(200, ['success' => true, 'data' => $rows, 'meta' => ['total' => count($rows)]]);
     }
 
     if (preg_match('#^/properties/(\d+)$#', $path, $m) && $method === 'GET') {
@@ -458,7 +473,46 @@ try {
     if ($path === '/properties/sync/tokko' && $method === 'POST') {
         require_admin();
         $result = tokko_sync();
+        // Reset the auto-sync timer so the next automatic run is 1 hour from now
+        $stampFile = __DIR__ . '/logs/last_sync.stamp';
+        @file_put_contents($stampFile, 'v4|' . time(), LOCK_EX);
         respond(200, ['success' => true, 'data' => $result]);
+    }
+
+    // Diagnostic: show raw first item from Tokko development endpoint + DB counts
+    if ($path === '/properties/debug/tokko' && $method === 'GET') {
+        $secret = $_GET['secret'] ?? '';
+        if ($secret !== 'are2026debug') {
+            respond(403, ['error' => 'Forbidden']);
+        }
+        $cfg = app_config()['tokko'];
+        $devUrl = $cfg['development_url'] . '?key=' . $cfg['api_key'] . '&limit=2&offset=0';
+        $raw = @file_get_contents($devUrl);
+        $decoded = $raw ? json_decode($raw, true) : null;
+        $firstItems = $decoded['objects'] ?? $decoded['results'] ?? [];
+        $dbCounts = db()->query(
+            "SELECT listing_kind, COUNT(*) as total FROM properties GROUP BY listing_kind"
+        )->fetchAll();
+        respond(200, [
+            'db_counts'   => $dbCounts,
+            'tokko_total' => $decoded['meta']['total_count'] ?? null,
+            'first_items' => array_slice($firstItems, 0, 2),
+        ]);
+    }
+
+    // Quick diagnostic: count rows per listing_kind (admin only, no sensitive data)
+    if ($path === '/properties/debug/counts' && $method === 'GET') {
+        require_admin();
+        $rows = db()->query(
+            "SELECT listing_kind, COUNT(*) as total FROM properties GROUP BY listing_kind"
+        )->fetchAll();
+        $sample = db()->query(
+            "SELECT id, tokko_id, title, listing_kind,
+                    LEFT(tags_json,200) as tags_preview,
+                    LEFT(details_json,300) as details_preview
+             FROM properties WHERE listing_kind='development' LIMIT 3"
+        )->fetchAll();
+        respond(200, ['counts' => $rows, 'dev_sample' => $sample]);
     }
 
     // ─── Artículos ───────────────────────────────────────────────────────────
@@ -483,14 +537,15 @@ try {
     if ($path === '/articles' && $method === 'POST') {
         require_admin();
         $input = json_input();
-        $stmt = db()->prepare('INSERT INTO articles (title, slug, excerpt, content, image_url, published) VALUES (:title, :slug, :excerpt, :content, :image_url, :published)');
+        $stmt = db()->prepare('INSERT INTO articles (title, slug, excerpt, content, image_url, external_url, published) VALUES (:title, :slug, :excerpt, :content, :image_url, :external_url, :published)');
         $stmt->execute([
-            ':title'     => $input['title'] ?? '',
-            ':slug'      => $input['slug'] ?? '',
-            ':excerpt'   => $input['excerpt'] ?? null,
-            ':content'   => $input['content'] ?? '',
-            ':image_url' => $input['image_url'] ?? null,
-            ':published' => isset($input['published']) ? ((bool)$input['published'] ? 1 : 0) : 1,
+            ':title'        => $input['title'] ?? '',
+            ':slug'         => $input['slug'] ?? '',
+            ':excerpt'      => $input['excerpt'] ?? null,
+            ':content'      => $input['content'] ?? '',
+            ':image_url'    => $input['image_url'] ?? null,
+            ':external_url' => $input['external_url'] ?? null,
+            ':published'    => isset($input['published']) ? ((bool)$input['published'] ? 1 : 0) : 1,
         ]);
         $id = (int)db()->lastInsertId();
         $fetch = db()->prepare('SELECT * FROM articles WHERE id = :id LIMIT 1');
@@ -501,15 +556,16 @@ try {
     if (preg_match('#^/articles/(\d+)$#', $path, $m) && $method === 'PUT') {
         require_admin();
         $input = json_input();
-        $stmt = db()->prepare('UPDATE articles SET title=:title, slug=:slug, excerpt=:excerpt, content=:content, image_url=:image_url, published=:published, updated_at=NOW() WHERE id=:id');
+        $stmt = db()->prepare('UPDATE articles SET title=:title, slug=:slug, excerpt=:excerpt, content=:content, image_url=:image_url, external_url=:external_url, published=:published, updated_at=NOW() WHERE id=:id');
         $stmt->execute([
-            ':title'     => $input['title'] ?? '',
-            ':slug'      => $input['slug'] ?? '',
-            ':excerpt'   => $input['excerpt'] ?? null,
-            ':content'   => $input['content'] ?? '',
-            ':image_url' => $input['image_url'] ?? null,
-            ':published' => isset($input['published']) ? ((bool)$input['published'] ? 1 : 0) : 1,
-            ':id'        => (int)$m[1],
+            ':title'        => $input['title'] ?? '',
+            ':slug'         => $input['slug'] ?? '',
+            ':excerpt'      => $input['excerpt'] ?? null,
+            ':content'      => $input['content'] ?? '',
+            ':image_url'    => $input['image_url'] ?? null,
+            ':external_url' => $input['external_url'] ?? null,
+            ':published'    => isset($input['published']) ? ((bool)$input['published'] ? 1 : 0) : 1,
+            ':id'           => (int)$m[1],
         ]);
         $fetch = db()->prepare('SELECT * FROM articles WHERE id = :id LIMIT 1');
         $fetch->execute([':id' => (int)$m[1]]);

@@ -1,13 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ImageUpload from '../components/ImageUpload';
 import {
   Inbox, Sparkles, Phone, CheckCircle, Home,
-  Trash2, Save
+  Trash2, Save, Pencil, X, RefreshCw
 } from 'lucide-react';
 
-const initialArticle = { title: '', slug: '', excerpt: '', content: '', image_url: '' };
+const initialArticle = { title: '', slug: '', excerpt: '', content: '', image_url: '', external_url: '' };
+
+function toSlug(text) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
 
 export default function DashboardPage() {
   const { logout } = useAuth();
@@ -15,6 +26,24 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState(null);
   const [articles, setArticles] = useState([]);
   const [articleForm, setArticleForm] = useState(initialArticle);
+  const [editingArticleId, setEditingArticleId] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const formRef = useRef(null);
+
+  async function syncTokko() {
+    setSyncing(true);
+    setSyncMsg('');
+    try {
+      const res = await api.post('/properties/sync/tokko');
+      const count = res.data?.data?.synced ?? '?';
+      setSyncMsg(`✅ Sincronización completada — ${count} propiedades actualizadas.`);
+    } catch {
+      setSyncMsg('❌ Error al sincronizar. Intenta nuevamente.');
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function loadData() {
     const [m, a] = await Promise.all([
@@ -30,11 +59,37 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  async function createArticle(event) {
+  async function submitArticle(event) {
     event.preventDefault();
-    await api.post('/articles', articleForm);
+    if (editingArticleId) {
+      await api.put(`/articles/${editingArticleId}`, articleForm);
+    } else {
+      await api.post('/articles', articleForm);
+    }
+
+    setEditingArticleId(null);
     setArticleForm(initialArticle);
     await loadData();
+  }
+
+  function startEditArticle(article) {
+    setEditingArticleId(article.id);
+    setArticleForm({
+      title: article.title || '',
+      slug: article.slug || '',
+      excerpt: article.excerpt || '',
+      content: article.content || '',
+      image_url: article.image_url || '',
+      external_url: article.external_url || '',
+    });
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }
+
+  function cancelEditArticle() {
+    setEditingArticleId(null);
+    setArticleForm(initialArticle);
   }
 
   async function deleteArticle(id) {
@@ -75,9 +130,23 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        Solicitudes, Propiedades y Servicios se administran en Tokko Broker.
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <span>Solicitudes, Propiedades y Servicios se administran en Tokko Broker.</span>
+        <button
+          type="button"
+          onClick={syncTokko}
+          disabled={syncing}
+          className="flex items-center gap-2 rounded-lg bg-amber-700 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800 disabled:opacity-60"
+        >
+          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Sincronizando...' : 'Sincronizar Tokko'}
+        </button>
       </div>
+      {syncMsg && (
+        <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
+          {syncMsg}
+        </div>
+      )}
 
       {/* Métricas Tab */}
       {tab === 'metrics' && (
@@ -121,22 +190,36 @@ export default function DashboardPage() {
       {/* BLOG Tab */}
       {tab === 'articles' && (
         <div className="grid gap-8 lg:grid-cols-2">
-          <section className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h3 className="font-heading text-xl font-bold mb-4">Crear Noticia</h3>
-            <form className="space-y-4" onSubmit={createArticle}>
+          <section
+            ref={formRef}
+            className={`rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 ${
+              editingArticleId ? 'border-blue-400 ring-2 ring-blue-200' : ''
+            }`}
+          >
+            <h3 className="font-heading text-xl font-bold mb-4">
+              {editingArticleId ? 'Editar Noticia' : 'Crear Noticia'}
+            </h3>
+            <form className="space-y-4" onSubmit={submitArticle}>
               <input
                 className="w-full rounded-lg border p-3"
                 placeholder="Título"
                 value={articleForm.title}
-                onChange={(e) => setArticleForm((prev) => ({ ...prev, title: e.target.value }))}
+                onChange={(e) => {
+                  const title = e.target.value;
+                  setArticleForm((prev) => ({
+                    ...prev,
+                    title,
+                    slug: editingArticleId ? prev.slug : toSlug(title),
+                  }));
+                }}
                 required
               />
               <input
-                className="w-full rounded-lg border p-3"
-                placeholder="Slug (url-amigable)"
-                value={articleForm.slug}
-                onChange={(e) => setArticleForm((prev) => ({ ...prev, slug: e.target.value }))}
-                required
+                type="url"
+                className="w-full rounded-lg border p-3 text-sm"
+                placeholder="URL externa (opcional, ej: https://fuente.com/articulo)"
+                value={articleForm.external_url}
+                onChange={(e) => setArticleForm((prev) => ({ ...prev, external_url: e.target.value }))}
               />
               <textarea
                 className="w-full rounded-lg border p-3"
@@ -158,9 +241,20 @@ export default function DashboardPage() {
                 onChange={(url) => setArticleForm((prev) => ({ ...prev, image_url: url }))}
                 label="Imagen de portada"
               />
-              <button className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600 flex items-center justify-center gap-2" type="submit">
-                <Save size={17} /> Guardar Noticia
-              </button>
+              <div className="flex gap-3">
+                <button className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600 flex items-center justify-center gap-2" type="submit">
+                  <Save size={17} /> {editingArticleId ? 'Actualizar Noticia' : 'Guardar Noticia'}
+                </button>
+                {editingArticleId && (
+                  <button
+                    className="rounded-lg border border-gray-300 px-4 py-3 font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={cancelEditArticle}
+                  >
+                    <X size={17} /> Cancelar
+                  </button>
+                )}
+              </div>
             </form>
           </section>
 
@@ -173,13 +267,24 @@ export default function DashboardPage() {
                     <p className="font-semibold text-sm">{art.title}</p>
                     <p className="text-xs text-gray-500">{new Date(art.created_at).toLocaleDateString('es-MX')}</p>
                   </div>
-                  <button
-                    onClick={() => deleteArticle(art.id)}
-                    className="text-red-500 hover:text-red-700"
-                    type="button"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => startEditArticle(art)}
+                      className="text-blue-500 hover:text-blue-700"
+                      type="button"
+                      title="Editar"
+                    >
+                      <Pencil size={18} />
+                    </button>
+                    <button
+                      onClick={() => deleteArticle(art.id)}
+                      className="text-red-500 hover:text-red-700"
+                      type="button"
+                      title="Eliminar"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

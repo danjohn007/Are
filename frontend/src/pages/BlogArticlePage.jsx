@@ -3,6 +3,23 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
 import ArticleCard from '../components/ArticleCard';
 
+function extractYouTubeId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
+    if (u.hostname.includes('youtube.com')) {
+      if (u.pathname === '/watch') return u.searchParams.get('v');
+      const embedMatch = u.pathname.match(/\/embed\/([^/?]+)/);
+      if (embedMatch) return embedMatch[1];
+      const shortsMatch = u.pathname.match(/\/shorts\/([^/?]+)/);
+      if (shortsMatch) return shortsMatch[1];
+    }
+  } catch {
+    // not a valid URL
+  }
+  return null;
+}
+
 function formatDate(date) {
   return new Date(date).toLocaleDateString('es-MX', {
     year: 'numeric',
@@ -74,7 +91,7 @@ export default function BlogArticlePage() {
         const items = Array.isArray(response?.data?.data) ? response.data.data : [];
         setArticles(items);
 
-        const found = items.find((item) => item.slug === slug);
+        const found = items.find((item) => item.slug === slug || String(item.id) === slug);
         if (!found) {
           setError('No encontramos este artículo.');
           setArticle(null);
@@ -175,6 +192,40 @@ export default function BlogArticlePage() {
               </p>
             ))}
           </div>
+
+          {article.external_url && (() => {
+            const ytId = extractYouTubeId(article.external_url);
+            if (ytId) {
+              return (
+                <div className="mt-8">
+                  <div className="relative w-full overflow-hidden rounded-2xl" style={{ paddingBottom: '56.25%' }}>
+                    <iframe
+                      className="absolute inset-0 h-full w-full"
+                      src={`https://www.youtube.com/embed/${ytId}`}
+                      title="Video"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5 flex items-center gap-4">
+                <div className="flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Fuente / Enlace externo</p>
+                  <a
+                    href={article.external_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-600 hover:text-brand-800 font-medium break-all underline underline-offset-2"
+                  >
+                    {article.external_url}
+                  </a>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="mt-10 rounded-2xl bg-slate-950 px-6 py-8 text-white">
             <h3 className="font-heading text-2xl font-black text-white">¿Quieres aplicar esto a tu próxima compra o inversión?</h3>

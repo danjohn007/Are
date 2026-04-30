@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getAllPaginated } from '../services/api';
-import PropertyCard from '../components/PropertyCard';
+import DevelopmentCard from '../components/DevelopmentCard';
 
 export default function DevelopmentsPage() {
   const [developments, setDevelopments] = useState([]);
@@ -50,9 +50,9 @@ export default function DevelopmentsPage() {
           Aun no hay desarrollos sincronizados. Cuando ejecutes la sincronizacion de Tokko, apareceran aqui automaticamente.
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-8 md:grid-cols-2">
           {developments.map((development) => (
-            <PropertyCard key={development.id} property={development} />
+            <DevelopmentCard key={development.id} development={development} />
           ))}
         </div>
       )}

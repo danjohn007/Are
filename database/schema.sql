@@ -56,10 +56,14 @@ CREATE TABLE IF NOT EXISTS articles (
   excerpt TEXT,
   content TEXT NOT NULL,
   image_url TEXT,
+  external_url TEXT,
   published BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Migration: add external_url column to existing databases
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS external_url TEXT AFTER image_url;
 
 CREATE TABLE IF NOT EXISTS leads (
   id INT AUTO_INCREMENT PRIMARY KEY,

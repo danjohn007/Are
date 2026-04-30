@@ -130,6 +130,7 @@ function ensure_property_columns(): void
         'property_type' => 'ADD COLUMN property_type VARCHAR(120) NULL AFTER listing_kind',
         'reference_code' => 'ADD COLUMN reference_code VARCHAR(80) NULL AFTER property_type',
         'location_full' => 'ADD COLUMN location_full VARCHAR(255) NULL AFTER reference_code',
+        'parent_tokko_id' => 'ADD COLUMN parent_tokko_id VARCHAR(80) NULL AFTER location_full',
         'photos_json' => 'ADD COLUMN photos_json LONGTEXT NULL AFTER image_url',
         'tags_json' => 'ADD COLUMN tags_json LONGTEXT NULL AFTER photos_json',
         'videos_json' => 'ADD COLUMN videos_json LONGTEXT NULL AFTER tags_json',
@@ -232,19 +233,7 @@ function tokko_send_contact(
 function tokko_sync(): array
 {
     $cfg = app_config()['tokko'];
-    if (!$cfg['api_key']) {
-        return ['synced' => 0, 'skipped' => true];
-    }
-
-    $endpoints = [];
-    if (!empty($cfg['url'])) {
-        $endpoints[] = ['url' => $cfg['url'], 'kind' => 'property'];
-    }
-    if (!empty($cfg['development_url'])) {
-        $endpoints[] = ['url' => $cfg['development_url'], 'kind' => 'development'];
-    }
-
-    if (!$endpoints) {
+    if (!$cfg['api_key'] || empty($cfg['url'])) {
         return ['synced' => 0, 'skipped' => true];
     }
 
@@ -255,12 +244,12 @@ function tokko_sync(): array
         INSERT INTO properties (
             tokko_id, title, description, price, address, city, bedrooms, bathrooms, area, image_url,
             photos_json, tags_json, videos_json, files_json, details_json,
-            operation_type, listing_kind, property_type, reference_code, location_full
+            operation_type, listing_kind, property_type, reference_code, location_full, parent_tokko_id
         )
         VALUES (
             :tokko_id, :title, :description, :price, :address, :city, :bedrooms, :bathrooms, :area, :image_url,
             :photos_json, :tags_json, :videos_json, :files_json, :details_json,
-            :operation_type, :listing_kind, :property_type, :reference_code, :location_full
+            :operation_type, :listing_kind, :property_type, :reference_code, :location_full, :parent_tokko_id
         )
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
@@ -282,6 +271,7 @@ function tokko_sync(): array
             property_type = VALUES(property_type),
             reference_code = VALUES(reference_code),
             location_full = VALUES(location_full),
+            parent_tokko_id = VALUES(parent_tokko_id),
             updated_at = NOW()
     ";
 
@@ -289,62 +279,230 @@ function tokko_sync(): array
     $synced = 0;
     $errors = [];
 
-    foreach ($endpoints as $endpoint) {
-        $items = tokko_fetch_items($endpoint['url'], $cfg['api_key']);
-        if ($items === null) {
-            $errors[] = 'Unable to fetch Tokko endpoint: ' . $endpoint['url'];
+    // ── STEP 1: Fetch all property items ─────────────────────────────────────
+    // Property endpoint returns standalone properties AND units belonging to a
+    // development (those have item['development']['id']).
+    // Units → collected into $devMap (one row per dev, tags merged across all units)
+    // Standalone → inserted directly as regular properties
+    $propUrl   = $cfg['url'] ?? '';
+    $devUrl    = $cfg['development_url'] ?? '';
+    $propItems = $propUrl ? tokko_fetch_items($propUrl, $cfg['api_key']) : null;
+
+    if ($propItems === null && $propUrl) {
+        $errors[] = 'Unable to fetch property endpoint: ' . $propUrl;
+        $propItems = [];
+    }
+
+    $devMap  = []; // devId => ['item', 'source', 'tags', 'unit_count']
+    $unitRows = []; // rows to insert as listing_kind='unit'
+
+    foreach (($propItems ?? []) as $item) {
+        $rawId = (string)($item['id'] ?? '');
+        if ($rawId === '') {
             continue;
         }
 
-        foreach ($items as $item) {
-            // Trust the endpoint source for listing kind to avoid false positives
-            // from tags/type text that can misclassify regular properties.
-            $isDevelopment = ($endpoint['kind'] === 'development');
-            $kind = $isDevelopment ? 'development' : 'property';
-            $source = tokko_pick_source($item, $isDevelopment);
-
-            $rawId = (string)($item['id'] ?? '');
-            if ($rawId === '') {
-                continue;
+        // ── Unit belonging to a development ──
+        if (!empty($item['development']['id']) && is_array($item['development'])) {
+            $devId = (string)$item['development']['id'];
+            if (!isset($devMap[$devId])) {
+                $devMap[$devId] = ['item' => $item, 'source' => $item['development'], 'tags' => [], 'unit_count' => 0];
             }
+            $devMap[$devId]['unit_count']++;
+            $devMap[$devId]['tags'] = array_values(array_unique(array_merge(
+                $devMap[$devId]['tags'],
+                tokko_extract_tags($item),
+                tokko_extract_tags($item['development'])
+            )));
 
-            $photos = tokko_extract_photos($source);
-            $tags = tokko_extract_tags($source);
-            $videos = array_values(is_array($source['videos'] ?? null) ? $source['videos'] : []);
-            $files = array_values(is_array($source['files'] ?? null) ? $source['files'] : []);
-            $description = tokko_extract_description($item, $source);
-            $publicUrl = $item['public_url'] ?? $source['public_url'] ?? $source['web_url'] ?? null;
-            if ($description === '' && is_string($publicUrl) && $publicUrl !== '') {
-                $description = tokko_fetch_public_description($publicUrl);
+            // Also store the unit as its own row so it can be listed under the development
+            $uPhotos = tokko_extract_photos($item);
+            $unitRows[] = [
+                ':tokko_id'        => 'property:' . $rawId,
+                ':title'           => $item['publication_title'] ?? $item['title'] ?? $item['name'] ?? 'Unidad',
+                ':description'     => tokko_extract_description($item, $item),
+                ':price'           => tokko_extract_price($item),
+                ':address'         => $item['real_address'] ?? $item['address'] ?? '',
+                ':city'            => $item['location']['name'] ?? $item['address_short'] ?? '',
+                ':bedrooms'        => (int)($item['room_amount'] ?? $item['suite_amount'] ?? 0),
+                ':bathrooms'       => (int)($item['bathroom_amount'] ?? 0),
+                ':area'            => (float)($item['surface'] ?? $item['roofed_surface'] ?? $item['total_surface'] ?? 0),
+                ':image_url'       => $uPhotos[0]['image'] ?? $item['photo'] ?? '',
+                ':photos_json'     => json_encode($uPhotos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':tags_json'       => json_encode(tokko_extract_tags($item), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':videos_json'     => json_encode(array_values(is_array($item['videos'] ?? null) ? $item['videos'] : []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':files_json'      => json_encode(array_values(is_array($item['files'] ?? null) ? $item['files'] : []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':details_json'    => json_encode(tokko_extract_details($item, $item, false), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':operation_type'  => tokko_extract_operation_type($item),
+                ':listing_kind'    => 'unit',
+                ':property_type'   => $item['type']['name'] ?? null,
+                ':reference_code'  => $item['reference_code'] ?? null,
+                ':location_full'   => $item['location']['full_location'] ?? null,
+                ':parent_tokko_id' => 'development:' . $devId,
+            ];
+
+            continue; // don't insert this unit as a standalone property
+        }
+
+        // ── Standalone property ──
+        $source      = $item;
+        $photos      = tokko_extract_photos($source);
+        $tags        = tokko_extract_tags($source);
+        $videos      = array_values(is_array($source['videos'] ?? null) ? $source['videos'] : []);
+        $files       = array_values(is_array($source['files'] ?? null) ? $source['files'] : []);
+        $description = tokko_extract_description($item, $source);
+        $publicUrl   = $item['public_url'] ?? $source['public_url'] ?? $source['web_url'] ?? null;
+        if (strlen($description) < 200 && is_string($publicUrl) && $publicUrl !== '') {
+            $fromPage = tokko_fetch_public_description($publicUrl);
+            if (strlen($fromPage) > strlen($description)) {
+                $description = $fromPage;
             }
+        }
+        if (!empty($description) && tokko_is_english($description)) {
+            $translated = tokko_translate_to_spanish($description);
+            if (!empty($translated)) {
+                $description = $translated;
+            }
+        }
 
-            $stmt->execute([
-                ':tokko_id' => $kind . ':' . $rawId,
-                ':title' => $source['publication_title'] ?? $source['title'] ?? $source['name'] ?? $item['publication_title'] ?? 'Property',
-                ':description' => $description,
-                ':price' => tokko_extract_price($item),
-                ':address' => $source['real_address'] ?? $source['address'] ?? $item['real_address'] ?? $item['address'] ?? '',
-                ':city' => $source['location']['name'] ?? ($item['location']['name'] ?? $source['location'] ?? $item['location'] ?? $item['address_short'] ?? ''),
-                ':bedrooms' => (int)($source['room_amount'] ?? $source['suite_amount'] ?? $item['room_amount'] ?? $item['suite_amount'] ?? 0),
-                ':bathrooms' => (int)($source['bathroom_amount'] ?? $item['bathroom_amount'] ?? 0),
-                ':area' => (float)($source['surface'] ?? $source['roofed_surface'] ?? $source['total_surface'] ?? $item['surface'] ?? $item['roofed_surface'] ?? $item['total_surface'] ?? 0),
-                ':image_url' => $photos[0]['image'] ?? $source['photo'] ?? $item['photo'] ?? '',
-                ':photos_json' => json_encode($photos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':tags_json' => json_encode($tags, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':videos_json' => json_encode($videos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':files_json' => json_encode($files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':details_json' => json_encode(tokko_extract_details($item, $source, $isDevelopment), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':operation_type' => tokko_extract_operation_type($item),
-                ':listing_kind' => $kind,
-                ':property_type' => $source['type']['name'] ?? $item['type']['name'] ?? $item['type'] ?? null,
-                ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
-                ':location_full' => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
-            ]);
-            $synced++;
+        $stmt->execute([
+            ':tokko_id'       => 'property:' . $rawId,
+            ':title'          => $source['publication_title'] ?? $source['title'] ?? $source['name'] ?? 'Property',
+            ':description'    => $description,
+            ':price'          => tokko_extract_price($item),
+            ':address'        => $source['real_address'] ?? $source['address'] ?? $item['real_address'] ?? $item['address'] ?? '',
+            ':city'           => $source['location']['name'] ?? $item['location']['name'] ?? $item['address_short'] ?? '',
+            ':bedrooms'       => (int)($source['room_amount'] ?? $source['suite_amount'] ?? $item['room_amount'] ?? 0),
+            ':bathrooms'      => (int)($source['bathroom_amount'] ?? $item['bathroom_amount'] ?? 0),
+            ':area'           => (float)($source['surface'] ?? $source['roofed_surface'] ?? $source['total_surface'] ?? $item['surface'] ?? 0),
+            ':image_url'      => $photos[0]['image'] ?? $source['photo'] ?? $item['photo'] ?? '',
+            ':photos_json'    => json_encode($photos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':tags_json'      => json_encode($tags, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':videos_json'    => json_encode($videos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':files_json'     => json_encode($files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':details_json'   => json_encode(tokko_extract_details($item, $source, false), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':operation_type' => tokko_extract_operation_type($item),
+            ':listing_kind'   => 'property',
+            ':property_type'  => $source['type']['name'] ?? $item['type']['name'] ?? null,
+            ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
+            ':location_full'   => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
+            ':parent_tokko_id' => null,
+        ]);
+        $synced++;
+    }
+
+    // ── STEP 2: Enrich devMap with the development endpoint ───────────────────
+    // /api/v1/development/ has richer metadata (photos, description, tags) but
+    // no unit counts. Use it to enrich entries already found via the property
+    // endpoint, and also add any dev that ONLY exists in this endpoint.
+    if ($devUrl) {
+        $devItems = tokko_fetch_items($devUrl, $cfg['api_key']);
+        if ($devItems !== null) {
+            foreach ($devItems as $item) {
+                $devId = (string)($item['id'] ?? '');
+                if ($devId === '') {
+                    continue;
+                }
+                if (!isset($devMap[$devId])) {
+                    $devMap[$devId] = ['item' => $item, 'source' => $item, 'tags' => [], 'unit_count' => 0];
+                } else {
+                    // Overwrite source with richer development-endpoint data
+                    $devMap[$devId]['source'] = $item;
+                    $devMap[$devId]['item']   = $item;
+                }
+                $devMap[$devId]['tags'] = array_values(array_unique(array_merge(
+                    $devMap[$devId]['tags'],
+                    tokko_extract_tags($item)
+                )));
+            }
+        } else {
+            $errors[] = 'Unable to fetch development endpoint (non-fatal): ' . $devUrl;
         }
     }
 
-    $result = ['synced' => $synced, 'skipped' => false];
+    // ── STEP 3: Insert developments atomically ────────────────────────────────
+    if (!empty($devMap)) {
+        $rows = [];
+        foreach ($devMap as $devId => $devData) {
+            $item      = $devData['item'];
+            $source    = $devData['source'];
+            $tags      = $devData['tags'];
+            $unitCount = $devData['unit_count'];
+
+            $photos = tokko_extract_photos($source);
+            if (empty($photos)) {
+                $photos = tokko_extract_photos($item);
+            }
+            $videos      = array_values(is_array($source['videos'] ?? null) ? $source['videos'] : []);
+            $files       = array_values(is_array($source['files'] ?? null) ? $source['files'] : []);
+            $description = tokko_extract_description($item, $source);
+            $publicUrl   = $item['public_url'] ?? $source['public_url'] ?? $source['web_url'] ?? null;
+            if (strlen($description) < 200 && is_string($publicUrl) && $publicUrl !== '') {
+                $fromPage = tokko_fetch_public_description($publicUrl);
+                if (strlen($fromPage) > strlen($description)) {
+                    $description = $fromPage;
+                }
+            }
+            if (!empty($description) && tokko_is_english($description)) {
+                $translated = tokko_translate_to_spanish($description);
+                if (!empty($translated)) {
+                    $description = $translated;
+                }
+            }
+
+            $details = tokko_extract_details($item, $source, true);
+            // Inject synced unit count (more reliable than Tokko's own field)
+            if ($unitCount > 0 && empty($details['unit_amount'])) {
+                $details['unit_amount'] = $unitCount;
+            }
+            if ($unitCount > 0) {
+                $details['unit_count_synced'] = $unitCount;
+            }
+
+            $rows[] = [
+                ':tokko_id'       => 'development:' . $devId,
+                ':title'          => $source['publication_title'] ?? $source['title'] ?? $source['name'] ?? $item['publication_title'] ?? 'Desarrollo',
+                ':description'    => $description,
+                ':price'          => tokko_extract_price($item),
+                ':address'        => $source['real_address'] ?? $source['address'] ?? $item['real_address'] ?? $item['address'] ?? '',
+                ':city'           => $source['location']['name'] ?? $item['location']['name'] ?? '',
+                ':bedrooms'       => (int)($source['room_amount'] ?? $item['room_amount'] ?? 0),
+                ':bathrooms'      => (int)($source['bathroom_amount'] ?? $item['bathroom_amount'] ?? 0),
+                ':area'           => (float)($source['surface'] ?? $source['roofed_surface'] ?? $source['total_surface'] ?? $item['surface'] ?? 0),
+                ':image_url'      => $photos[0]['image'] ?? $source['photo'] ?? $item['photo'] ?? '',
+                ':photos_json'    => json_encode($photos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':tags_json'      => json_encode($tags, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':videos_json'    => json_encode($videos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':files_json'     => json_encode($files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':details_json'   => json_encode($details, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                ':operation_type' => tokko_extract_operation_type($item),
+                ':listing_kind'   => 'development',
+                ':property_type'  => $source['type']['name'] ?? $item['type']['name'] ?? null,
+                ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
+                ':location_full'   => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
+                ':parent_tokko_id' => null,
+            ];
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $pdo->exec("DELETE FROM properties WHERE listing_kind = 'development'");
+            $pdo->exec("DELETE FROM properties WHERE listing_kind = 'unit'");
+            foreach ($rows as $row) {
+                $stmt->execute($row);
+                $synced++;
+            }
+            foreach ($unitRows as $row) {
+                $stmt->execute($row);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            $errors[] = 'Development insert failed: ' . $e->getMessage();
+        }
+    }
+
+    $result = ['synced' => $synced, 'skipped' => false, 'developments' => count($devMap)];
     if ($errors) {
         $result['errors'] = $errors;
     }
@@ -419,37 +577,161 @@ function tokko_extract_price(array $item): float
     return 0.0;
 }
 
+/**
+ * Runs tokko_sync() automatically if more than $intervalSeconds have passed
+ * since the last successful sync. Uses a simple timestamp file as a gate.
+ * Fails silently so it never breaks the properties endpoint.
+ */
+function tokko_auto_sync(int $intervalSeconds = 3600): void
+{
+    $cfg = app_config()['tokko'];
+    if (empty($cfg['api_key'])) {
+        return;
+    }
+
+    // Bump this constant to force an immediate re-sync after deploying a new version
+    $codeVersion = 'v7';
+
+    $stampFile = __DIR__ . '/../logs/last_sync.stamp';
+
+    $raw = is_file($stampFile) ? (string)@file_get_contents($stampFile) : '';
+    $parts = explode('|', $raw, 2);
+    $storedVersion = $parts[0] ?? '';
+    $lastRun = (int)($parts[1] ?? 0);
+
+    $versionChanged = ($storedVersion !== $codeVersion);
+    $intervalElapsed = (time() - $lastRun) >= $intervalSeconds;
+
+    if (!$versionChanged && !$intervalElapsed) {
+        return; // Up to date and too soon
+    }
+
+    // Write stamp BEFORE running so concurrent requests don't pile up
+    @file_put_contents($stampFile, $codeVersion . '|' . time(), LOCK_EX);
+
+    try {
+        tokko_sync();
+    } catch (Throwable $e) {
+        log_error($e);
+    }
+}
+
+function tokko_html_to_text(string $html): string
+{
+    // Replace block-level closing tags with a newline so paragraphs are preserved
+    $text = preg_replace('#</(p|div|li|h[1-6]|br|tr)>\s*#i', "\n", $html) ?? $html;
+    $text = preg_replace('#<br\s*/?>\s*#i', "\n", $text) ?? $text;
+    $text = strip_tags($text);
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    // Collapse multiple blank lines into a single one
+    $text = preg_replace('/\n{3,}/', "\n\n", $text) ?? $text;
+    return trim($text);
+}
+
+function tokko_is_english(string $text): bool
+{
+    $lower = strtolower($text);
+    $words = ['the ', ' is ', ' are ', ' in ', ' at ', ' for ', ' with ', ' this ', ' that ',
+              'bedroom', 'bathroom', 'located', 'property', 'floor', 'living', 'kitchen',
+              'square', 'feet', 'parking', 'garage', 'balcony', 'building', 'amenities'];
+    $matches = 0;
+    foreach ($words as $word) {
+        if (strpos($lower, $word) !== false) {
+            $matches++;
+        }
+    }
+    return $matches >= 3;
+}
+
+function tokko_translate_to_spanish(string $text): string
+{
+    if (empty($text)) {
+        return $text;
+    }
+
+    // MyMemory free API: 1000 words/day per IP. Translate up to 1500 chars.
+    $chunk = mb_substr($text, 0, 1500);
+    $tail  = mb_strlen($text) > 1500 ? ' ' . mb_substr($text, 1500) : '';
+
+    $url = 'https://api.mymemory.translated.net/get?q=' . urlencode($chunk) . '&langpair=en%7Ces';
+    $ctx = stream_context_create(['http' => [
+        'timeout' => 8,
+        'header'  => "User-Agent: ARE-Inmobiliaria/1.0\r\n",
+    ]]);
+
+    $response = @file_get_contents($url, false, $ctx);
+    if (!$response) {
+        return $text;
+    }
+
+    $data = json_decode($response, true);
+    $translated = $data['responseData']['translatedText'] ?? '';
+
+    if (empty($translated) || $translated === $chunk) {
+        return $text;
+    }
+
+    return $translated . $tail;
+}
+
 function tokko_extract_description(array $item, array $source): string
 {
     $candidates = [
+        $item['development']['description_only'] ?? null,
+        $item['development']['rich_description'] ?? null,
+        $item['development']['description'] ?? null,
+        $item['development']['description_short'] ?? null,
+        $item['development']['observations'] ?? null,
+        $item['development']['notes'] ?? null,
+        $item['development']['comments'] ?? null,
         $source['description_only'] ?? null,
         $source['rich_description'] ?? null,
         $source['description'] ?? null,
+        $source['description_short'] ?? null,
+        $source['observations'] ?? null,
+        $source['notes'] ?? null,
+        $source['comments'] ?? null,
         $item['description_only'] ?? null,
         $item['rich_description'] ?? null,
         $item['description'] ?? null,
         $item['description_short'] ?? null,
+        $item['observations'] ?? null,
+        $item['notes'] ?? null,
+        $item['comments'] ?? null,
     ];
 
+    // Placeholder-like phrases used by some agencies instead of a real description
+    $placeholders = ['yes we are', 'are real estate', 'are inmobiliaria', 'sin descripcion', 'sin descripción'];
+
+    $best = '';
     foreach ($candidates as $value) {
         if (!is_string($value)) {
             continue;
         }
 
-        $normalized = trim(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $normalized = tokko_html_to_text($value);
         if ($normalized === '') {
             continue;
         }
 
         $lower = strtolower($normalized);
-        if ($lower === 'yes we are' || $lower === 'are real estate') {
+        $isPlaceholder = false;
+        foreach ($placeholders as $placeholder) {
+            if (trim($lower) === $placeholder) {
+                $isPlaceholder = true;
+                break;
+            }
+        }
+        if ($isPlaceholder) {
             continue;
         }
 
-        return $normalized;
+        if (strlen($normalized) > strlen($best)) {
+            $best = $normalized;
+        }
     }
 
-    return '';
+    return $best;
 }
 
 function tokko_fetch_public_description(string $publicUrl): string
@@ -460,27 +742,57 @@ function tokko_fetch_public_description(string $publicUrl): string
         return $cache[$publicUrl];
     }
 
-    $html = @file_get_contents($publicUrl);
+    $ctx = stream_context_create(['http' => [
+        'timeout' => 8,
+        'header' => "User-Agent: Mozilla/5.0 (compatible; PropertyBot/1.0)\r\n",
+    ]]);
+    $html = @file_get_contents($publicUrl, false, $ctx);
     if (!is_string($html) || $html === '') {
         $cache[$publicUrl] = '';
         return '';
     }
 
-    // Normalize whitespace and extract text between "Descripcion" and "Ubicacion" blocks.
+    // 1. Try <meta name="description"> first — most reliable
+    if (preg_match('/<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']{20,})["\'][^>]*>/i', $html, $m)) {
+        $desc = trim(html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($desc !== '') {
+            $cache[$publicUrl] = $desc;
+            return $desc;
+        }
+    }
+
+    // 2. Try og:description
+    if (preg_match('/<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']{20,})["\'][^>]*>/i', $html, $m)) {
+        $desc = trim(html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($desc !== '') {
+            $cache[$publicUrl] = $desc;
+            return $desc;
+        }
+    }
+
+    // 3. Try text between Descripcion and the next major section heading
     $plain = preg_replace('/\s+/u', ' ', strip_tags($html));
-    if (!is_string($plain) || $plain === '') {
+    if (!is_string($plain)) {
         $cache[$publicUrl] = '';
         return '';
     }
 
     $description = '';
-    if (preg_match('/Descripci[oó]n\s+(.*?)\s+Ubicaci[oó]n/iu', $plain, $matches) === 1) {
-        $description = trim((string)$matches[1]);
+    // Try multiple heading pairs
+    $patterns = [
+        '/Descripci[oó]n\s+(.*?)\s+(?:Ubicaci[oó]n|Caracter[ií]sticas|Detalles|Amenidades|Contacto)/iu',
+        '/Descripci[oó]n\s+(.{40,1500})(?=\s+[A-ZÁÉÍÓÚ]{4,})/u',
+    ];
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $plain, $matches) === 1) {
+            $description = trim((string)$matches[1]);
+            break;
+        }
     }
 
     if ($description !== '') {
-        $description = str_replace([' Mostrar m\u00e1s', ' Mostrar m\u00e1s ', ' Mostrar mas', ' Mostrar menos'], ' ', $description);
-        $description = preg_replace('/\s+/u', ' ', $description) ?: $description;
+        $description = str_replace(['Mostrar más', 'Mostrar mas', 'Mostrar menos', 'Ver más', 'Ver mas'], '', $description);
+        $description = preg_replace('/\s{2,}/u', ' ', $description) ?: $description;
     }
 
     $cache[$publicUrl] = trim($description);
@@ -583,8 +895,9 @@ function tokko_extract_details(array $item, array $source, bool $isDevelopment):
         'electricity' => $item['electricity'] ?? $source['electricity'] ?? null,
         'water' => $item['water'] ?? $source['water'] ?? null,
         'sewerage' => $item['sewerage'] ?? $source['sewerage'] ?? null,
-        'construction_date' => $source['construction_date'] ?? null,
-        'construction_status' => $source['construction_status'] ?? null,
+        'construction_date' => $source['construction_date'] ?? $item['development']['construction_date'] ?? null,
+        'construction_status' => $source['construction_status'] ?? $item['development']['construction_status'] ?? null,
+        'delivery_date' => $item['development']['delivery_date'] ?? $source['delivery_date'] ?? null,
         'property_condition' => $item['property_condition'] ?? null,
         'situation' => $item['situation'] ?? null,
         'age' => $item['age'] ?? null,
@@ -595,6 +908,9 @@ function tokko_extract_details(array $item, array $source, bool $isDevelopment):
         'iptu' => $item['iptu'] ?? $source['iptu'] ?? null,
         'credit_eligible' => $item['credit_eligible'] ?? $source['credit_eligible'] ?? null,
         'public_url' => $item['public_url'] ?? $source['public_url'] ?? $source['web_url'] ?? null,
+        'unit_amount' => $item['unit_amount'] ?? $source['unit_amount'] ?? $item['development']['unit_amount'] ?? null,
+        'floors_amount' => $item['floors_amount'] ?? $source['floors_amount'] ?? $item['development']['floors_amount'] ?? null,
+        'available_units' => $item['available_units'] ?? $source['available_units'] ?? $item['development']['available_units'] ?? null,
         'branch' => [
             'name' => $source['branch']['name'] ?? $item['branch']['name'] ?? null,
             'email' => $source['branch']['email'] ?? $item['branch']['email'] ?? null,

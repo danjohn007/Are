@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
+import PropertyCard from '../components/PropertyCard';
 
 const fallbackImage = 'https://images.unsplash.com/photo-1570129477492-45c003edd2be';
 
@@ -40,6 +41,8 @@ export default function PropertyDetailPage() {
   const [error, setError] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [units, setUnits] = useState([]);
+  const [loadingUnits, setLoadingUnits] = useState(false);
 
   useEffect(() => {
     async function fetchItem() {
@@ -60,6 +63,24 @@ export default function PropertyDetailPage() {
 
     fetchItem();
   }, [id]);
+
+  useEffect(() => {
+    if (!item || item.listing_kind !== 'development') return;
+    let cancelled = false;
+    async function fetchUnits() {
+      setLoadingUnits(true);
+      try {
+        const res = await api.get(`/properties/${id}/units`);
+        if (!cancelled) setUnits(res.data.data || []);
+      } catch {
+        if (!cancelled) setUnits([]);
+      } finally {
+        if (!cancelled) setLoadingUnits(false);
+      }
+    }
+    fetchUnits();
+    return () => { cancelled = true; };
+  }, [item, id]);
 
   if (loading) {
     return (
@@ -145,12 +166,13 @@ export default function PropertyDetailPage() {
       </Link>
 
       <div className="grid items-start gap-8 lg:grid-cols-2 xl:gap-10">
+        <div className="space-y-6 lg:space-y-7">
         <div className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
           <div className="relative overflow-hidden bg-slate-100">
             <img
               src={activeImage}
               alt={item.title}
-              className="h-[320px] w-full object-cover md:h-[440px]"
+              className="h-[320px] w-full object-cover md:h-[440px] transition-opacity duration-300"
             />
 
             {photos.length > 1 && (
@@ -171,9 +193,39 @@ export default function PropertyDetailPage() {
                 >
                   ›
                 </button>
+                {/* Counter badge */}
+                <span className="absolute bottom-4 right-4 rounded-full bg-slate-950/70 px-3 py-1 text-xs font-semibold text-white">
+                  {normalizedActiveIndex + 1} / {photos.length}
+                </span>
               </>
             )}
           </div>
+
+          {/* Thumbnail strip */}
+          {photos.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto px-4 py-3 scrollbar-hide">
+              {photos.map((photo, index) => {
+                const thumb = photo.thumb || photo.image || photo.original;
+                const isActive = index === normalizedActiveIndex;
+                return (
+                  <button
+                    key={`thumb-${index}`}
+                    type="button"
+                    onClick={() => setActiveIndex(index)}
+                    className={`flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all duration-200 ${
+                      isActive ? 'border-brand-500 opacity-100 scale-105' : 'border-transparent opacity-60 hover:opacity-90'
+                    }`}
+                  >
+                    <img
+                      src={thumb}
+                      alt={`Foto ${index + 1}`}
+                      className="h-16 w-20 object-cover"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div className="space-y-6 p-6 md:p-7">
             {detailEntries.length > 0 && (
@@ -204,6 +256,78 @@ export default function PropertyDetailPage() {
               </section>
             )}
           </div>
+
+        </div>
+
+        <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
+          <h2 className="font-heading text-xl font-bold text-slate-950">Descripcion</h2>
+          <p className="mt-3 whitespace-pre-line text-base leading-7 text-gray-700">
+            {showFullDescription ? (item.description || 'Sin descripcion disponible por el momento.') : (shortDescription || 'Sin descripcion disponible por el momento.')}
+          </p>
+          {(item.description || '').length > 600 && (
+            <button
+              type="button"
+              onClick={() => setShowFullDescription((v) => !v)}
+              className="mt-3 text-sm font-semibold text-brand-700 transition hover:text-brand-500"
+            >
+              {showFullDescription ? 'Mostrar menos' : 'Mostrar mas'}
+            </button>
+          )}
+        </section>
+
+        {item.tags?.length > 0 && (
+          <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
+            <h2 className="font-heading text-xl font-bold text-slate-950">
+              {isDevelopment ? 'Adicionales' : 'Amenidades y caracteristicas'}
+            </h2>
+            {isDevelopment ? (
+              <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+                {item.tags.map((tag) => (
+                  <li key={tag} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-slate-800">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white text-xs font-bold">✓</span>
+                    {tag}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {item.tags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {mapUrl && (
+          <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="font-heading text-xl font-bold text-slate-950">Ubicacion</h3>
+              {mapLink && (
+                <a
+                  href={mapLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-semibold text-brand-700 transition hover:text-brand-500"
+                >
+                  Abrir en Google Maps
+                </a>
+              )}
+            </div>
+            <iframe
+              title="Mapa de ubicacion"
+              src={mapUrl}
+              className="h-72 w-full rounded-2xl border border-gray-200"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+            <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+              Nota importante: las medidas e informacion se consideran referenciales y deben validarse con documentacion vigente.
+            </p>
+          </section>
+        )}
 
         </div>
 
@@ -265,21 +389,73 @@ export default function PropertyDetailPage() {
             </aside>
           )}
 
-          <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
-            <h2 className="font-heading text-xl font-bold text-slate-950">Descripcion</h2>
-            <p className="mt-3 whitespace-pre-line text-base leading-7 text-gray-700">
-              {showFullDescription ? (item.description || 'Sin descripcion disponible por el momento.') : (shortDescription || 'Sin descripcion disponible por el momento.')}
-            </p>
-            {(item.description || '').length > 600 && (
-              <button
-                type="button"
-                onClick={() => setShowFullDescription((v) => !v)}
-                className="mt-3 text-sm font-semibold text-brand-700 transition hover:text-brand-500"
-              >
-                {showFullDescription ? 'Mostrar menos' : 'Mostrar mas'}
-              </button>
-            )}
-          </section>
+          {/* Development-specific block */}
+          {isDevelopment && (
+            <div className="rounded-[2rem] border-2 border-brand-100 bg-brand-50 p-6 md:p-7">
+              <h2 className="font-heading text-xl font-bold text-slate-950 mb-4">Información del desarrollo</h2>
+              <div className="flex flex-wrap gap-4">
+                {(item.details?.unit_amount || item.details?.available_units) && (
+                  <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500 text-xl font-black text-white">
+                      {item.details?.available_units || item.details?.unit_amount}
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Unidades</p>
+                      <p className="font-bold text-slate-900">disponibles</p>
+                    </div>
+                  </div>
+                )}
+                {item.details?.floors_amount && (
+                  <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-xl font-black text-white">
+                      {item.details.floors_amount}
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Pisos</p>
+                      <p className="font-bold text-slate-900">en el edificio</p>
+                    </div>
+                  </div>
+                )}
+                {item.details?.construction_status && (
+                  <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Estado</p>
+                      <p className="font-bold text-slate-900">{item.details.construction_status}</p>
+                    </div>
+                  </div>
+                )}
+                {item.details?.delivery_date && (
+                  <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Fecha de entrega</p>
+                      <p className="font-bold text-slate-900">{item.details.delivery_date}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Units list for developments */}
+          {isDevelopment && (loadingUnits || units.length > 0) && (
+            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
+              <h2 className="font-heading text-xl font-bold text-slate-950 mb-1">Unidades disponibles</h2>
+              {loadingUnits ? (
+                <p className="mt-4 text-sm text-gray-400">Cargando unidades...</p>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500 mb-5">{units.length} unidad{units.length !== 1 ? 'es' : ''} en este desarrollo</p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {units.map((unit) => (
+                      <PropertyCard key={unit.id} property={unit} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
+
 
           {surfaces.length > 0 && (
             <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
@@ -295,18 +471,7 @@ export default function PropertyDetailPage() {
             </section>
           )}
 
-          {item.tags?.length > 0 && (
-            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
-              <h2 className="font-heading text-xl font-bold text-slate-950">Amenidades y caracteristicas</h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {item.tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </section>
-          )}
+
 
           {item.videos?.length > 0 && (
             <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
@@ -346,33 +511,7 @@ export default function PropertyDetailPage() {
             </section>
           )}
 
-          {mapUrl && (
-            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <h3 className="font-heading text-xl font-bold text-slate-950">Ubicacion</h3>
-                {mapLink && (
-                  <a
-                    href={mapLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm font-semibold text-brand-700 transition hover:text-brand-500"
-                  >
-                    Abrir en Google Maps
-                  </a>
-                )}
-              </div>
-              <iframe
-                title="Mapa de ubicacion"
-                src={mapUrl}
-                className="h-72 w-full rounded-2xl border border-gray-200"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-              <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
-                Nota importante: las medidas e informacion se consideran referenciales y deben validarse con documentacion vigente.
-              </p>
-            </section>
-          )}
+
         </div>
       </div>
     </section>

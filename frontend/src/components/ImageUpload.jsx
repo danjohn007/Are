@@ -1,20 +1,51 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import api from '../services/api';
-import { FolderOpen, Loader2, Trash2 } from 'lucide-react';
+import { FolderOpen, Loader2, Trash2, Link as LinkIcon } from 'lucide-react';
+
+/**
+ * Extract YouTube video ID from any common YouTube URL format.
+ * Returns null if the URL is not a YouTube video URL.
+ */
+function extractYouTubeId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
+    if (u.hostname.includes('youtube.com')) {
+      if (u.pathname === '/watch') return u.searchParams.get('v');
+      const embedMatch = u.pathname.match(/\/embed\/([^/?]+)/);
+      if (embedMatch) return embedMatch[1];
+      const shortsMatch = u.pathname.match(/\/shorts\/([^/?]+)/);
+      if (shortsMatch) return shortsMatch[1];
+    }
+  } catch {
+    // not a valid URL
+  }
+  return null;
+}
+
+function youtubeThumbnail(videoId) {
+  return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+}
 
 export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
   const [preview, setPreview] = useState(value || '');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [urlInput, setUrlInput] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
   const inputRef = useRef(null);
+
+  // Sync preview when value prop changes (e.g., when loading an article to edit)
+  useEffect(() => {
+    setPreview(value || '');
+  }, [value]);
 
   function clearImage() {
     setPreview('');
     setError('');
+    setUrlInput('');
     onChange('');
-    if (inputRef.current) {
-      inputRef.current.value = '';
-    }
+    if (inputRef.current) inputRef.current.value = '';
   }
 
   async function handleFile(e) {
@@ -22,12 +53,10 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
     if (!file) return;
     setError('');
 
-    // Mostrar preview local inmediato
     const reader = new FileReader();
     reader.onload = (ev) => setPreview(ev.target.result);
     reader.readAsDataURL(file);
 
-    // Subir al servidor
     setUploading(true);
     try {
       const formData = new FormData();
@@ -45,10 +74,34 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
     }
   }
 
+  function handleUrlSubmit() {
+    const raw = urlInput.trim();
+    if (!raw) return;
+    setError('');
+
+    const ytId = extractYouTubeId(raw);
+    if (ytId) {
+      const thumb = youtubeThumbnail(ytId);
+      setPreview(thumb);
+      onChange(thumb);
+      setUrlInput('');
+      setShowUrlInput(false);
+      return;
+    }
+
+    // Plain image URL
+    setPreview(raw);
+    onChange(raw);
+    setUrlInput('');
+    setShowUrlInput(false);
+  }
+
   return (
     <div className="space-y-2">
       <label className="block text-sm font-semibold text-gray-700">{label}</label>
-      <div className="flex items-center gap-3">
+
+      <div className="flex flex-wrap items-center gap-3">
+        {/* File upload button */}
         <label
           className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-2 text-sm transition
             ${uploading ? 'border-gray-200 text-gray-400' : 'border-brand-500 text-brand-700 hover:bg-brand-50'}`}
@@ -66,8 +119,21 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
             disabled={uploading}
           />
         </label>
+
+        {/* URL / YouTube button */}
+        {!preview && (
+          <button
+            type="button"
+            onClick={() => setShowUrlInput((v) => !v)}
+            className="flex items-center gap-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+          >
+            <LinkIcon size={14} /> Pegar URL / YouTube
+          </button>
+        )}
+
+        {/* Preview */}
         {preview && (
-          <div className="relative flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <img
               src={preview}
               alt="Vista previa"
@@ -83,10 +149,41 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
             </button>
           </div>
         )}
-        {!preview && (
-          <span className="text-xs text-gray-400">JPG, PNG, WEBP o GIF · máx. 5MB</span>
+
+        {!preview && !showUrlInput && (
+          <span className="text-xs text-gray-400">JPG, PNG, WEBP, GIF o enlace de YouTube</span>
         )}
       </div>
+
+      {/* URL input panel */}
+      {showUrlInput && !preview && (
+        <div className="flex gap-2">
+          <input
+            type="url"
+            className="flex-1 rounded-lg border p-2 text-sm"
+            placeholder="https://youtube.com/watch?v=... o URL de imagen"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleUrlSubmit())}
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={handleUrlSubmit}
+            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+          >
+            Usar
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowUrlInput(false); setUrlInput(''); }}
+            className="rounded-lg border px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );

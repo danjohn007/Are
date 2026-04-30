@@ -1,50 +1,60 @@
 import { Link } from 'react-router-dom';
-import { MapPin, BedDouble, Bath } from 'lucide-react';
+import { MapPin, BedDouble, Bath, Maximize2 } from 'lucide-react';
 
 export default function PropertyCard({ property }) {
-  const operationBadgeColor = property.operation_type === 'renta' ? 'bg-green-500' : 'bg-orange-500';
+  const operationBadgeColor = property.operation_type === 'renta' ? 'bg-emerald-500' : 'bg-brand-500';
   const operationLabel = property.operation_type === 'renta' ? 'En Renta' : 'En Venta';
   const detailPath = property.listing_kind === 'development' ? `/developments/${property.id}` : `/properties/${property.id}`;
-  
+  const price = Number(property.price || 0);
+  const formattedPrice = price > 0 ? `$${price.toLocaleString('es-MX')}` : 'Consultar';
+
   return (
-    <article data-aos="zoom-in" className="relative overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm transition hover:shadow-lg">
-      <div className="relative">
-        <Link to={detailPath} className="block" aria-label={`Ver detalle de ${property.title}`}>
+    <article data-aos="zoom-in" className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-gray-100 transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+      {/* Image with overlay */}
+      <div className="relative overflow-hidden">
+        <Link to={detailPath} aria-label={`Ver detalle de ${property.title}`}>
           <img
             src={property.image_url || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be'}
             alt={property.title}
-            className="h-56 w-full object-cover transition-transform duration-300 hover:scale-[1.02]"
+            className="h-56 w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
+          {/* Dark overlay on hover */}
+          <div className="absolute inset-0 bg-slate-950/0 transition-all duration-300 group-hover:bg-slate-950/40 flex items-center justify-center">
+            <span className="translate-y-4 scale-90 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:scale-100 group-hover:opacity-100 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-slate-900 shadow-lg">
+              Ver detalle →
+            </span>
+          </div>
         </Link>
-        <span className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-bold text-white ${operationBadgeColor}`}>
+        {/* Badge */}
+        <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-bold text-white shadow ${operationBadgeColor}`}>
           {operationLabel}
         </span>
+        {/* Price pill on image bottom */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-950/80 to-transparent px-4 py-3">
+          <span className="text-xl font-black text-white tracking-tight">{formattedPrice}</span>
+          {price > 0 && <span className="ml-1 text-xs text-white/70">MXN</span>}
+        </div>
       </div>
+
+      {/* Content */}
       <div className="p-5">
-        <h3 className="font-heading text-lg font-bold">
-          <Link to={detailPath} className="transition hover:text-brand-700">
+        <h3 className="font-heading text-base font-bold leading-snug text-slate-900 line-clamp-2">
+          <Link to={detailPath} className="transition hover:text-brand-600">
             {property.title}
           </Link>
         </h3>
-        <p className="mt-1 text-sm text-gray-500">{property.city}</p>
-        <p className="mt-3 line-clamp-2 text-sm text-gray-700">{property.description}</p>
-        <div className="mt-4 space-y-2">
-          <div className="flex items-baseline justify-between">
-            <span className="text-xl font-bold text-brand-600">${Number(property.price || 0).toLocaleString('es-MX')} MXN</span>
-          </div>
-          <div className="flex gap-4 text-xs text-gray-600">
-            <span className="flex items-center gap-1"><MapPin size={13} /> {property.area} m²</span>
-            <span className="flex items-center gap-1"><BedDouble size={13} /> {property.bedrooms} Rec.</span>
-            <span className="flex items-center gap-1"><Bath size={13} /> {property.bathrooms} Baños</span>
-          </div>
+        <p className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+          <MapPin size={11} className="shrink-0 text-brand-400" />
+          {property.city || 'Ubicación no disponible'}
+        </p>
+
+        <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5"><Maximize2 size={13} className="text-gray-400" />{property.area ? `${Number(property.area).toLocaleString('es-MX')} m²` : '—'}</span>
+          <span className="flex items-center gap-1.5"><BedDouble size={13} className="text-gray-400" />{property.bedrooms || 0} Rec.</span>
+          <span className="flex items-center gap-1.5"><Bath size={13} className="text-gray-400" />{property.bathrooms || 0} Baños</span>
         </div>
-        <Link
-          to={detailPath}
-          className="mt-5 inline-flex rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-        >
-          Ver detalle
-        </Link>
       </div>
     </article>
   );
 }
+
