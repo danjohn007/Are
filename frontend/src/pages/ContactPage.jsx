@@ -53,7 +53,7 @@ export default function ContactPage() {
   return (
     <section className="section-shell py-14 md:py-16">
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <aside className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-orange-900 px-7 py-8 text-white shadow-xl md:px-9 md:py-10">
+        <aside className="relative order-last overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-orange-900 px-7 py-8 text-white shadow-xl md:px-9 md:py-10 lg:order-first">
           <div className="pointer-events-none absolute -right-10 -top-8 h-36 w-36 rounded-full bg-orange-400/25 blur-3xl" />
           <div className="pointer-events-none absolute bottom-0 left-0 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
 

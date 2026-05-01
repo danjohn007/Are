@@ -31,7 +31,7 @@ export default function DevelopmentsPage() {
   return (
     <section className="section-shell py-14">
       <div className="mx-auto mb-10 max-w-3xl text-center">
-        <h2 className="font-heading text-4xl font-black text-slate-950">Desarrollos</h2>
+        <h2 className="font-heading text-4xl font-black text-brand-500">Desarrollos</h2>
         <p className="mt-2 text-gray-600">
           Comercializamos desarrollos de multiples unidades para vivir o invertir, con acompanamiento completo desde la preventa hasta la entrega.
         </p>
@@ -62,12 +62,14 @@ export default function DevelopmentsPage() {
         <p className="mx-auto mt-3 max-w-2xl text-white/90">
           Te ayudamos a comparar opciones por etapa, ticket de inversion, rentabilidad estimada y perfil de riesgo.
         </p>
-        <Link
-          to="/contact"
+        <a
+          href="https://wa.me/524427070872?text=%C2%A1Hola!%20Quiero%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20desarrollos%20inmobiliarios."
+          target="_blank"
+          rel="noreferrer"
           className="mt-6 inline-block rounded-xl bg-brand-500 px-8 py-3 font-bold text-white transition hover:bg-brand-700"
         >
           Hablar con un asesor
-        </Link>
+        </a>
       </div>
     </section>
   );

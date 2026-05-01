@@ -43,25 +43,24 @@ function inferCategory(article) {
   return 'Tendencias';
 }
 
+function isHtmlContent(content) {
+  return typeof content === 'string' && /<[a-z][\s\S]*>/i.test(content);
+}
+
 function splitContent(content) {
   if (!content || typeof content !== 'string') {
     return [];
   }
 
-  const byLine = content
-    .split(/\n+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  if (byLine.length >= 2) {
-    return byLine;
+  // If it's HTML, don't split — will be rendered with dangerouslySetInnerHTML
+  if (isHtmlContent(content)) {
+    return [];
   }
 
   return content
-    .split(/\.\s+/)
+    .split(/\n+/)
     .map((item) => item.trim())
-    .filter(Boolean)
-    .map((item) => (item.endsWith('.') ? item : `${item}.`));
+    .filter(Boolean);
 }
 
 function buildOutline(paragraphs) {
@@ -185,12 +184,16 @@ export default function BlogArticlePage() {
             </aside>
           )}
 
-          <div className="prose mt-9 max-w-none text-slate-700">
-            {(paragraphs.length ? paragraphs : [article.content]).map((paragraph, index) => (
-              <p key={`${article.id}-paragraph-${index}`} className="mb-5 whitespace-pre-line text-base leading-8">
-                {paragraph}
-              </p>
-            ))}
+          <div className="prose prose-slate mt-9 max-w-none text-slate-700 prose-headings:font-heading prose-headings:text-slate-950 prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline prose-img:rounded-2xl">
+            {isHtmlContent(article.content) ? (
+              <div dangerouslySetInnerHTML={{ __html: article.content }} />
+            ) : (
+              (paragraphs.length ? paragraphs : [article.content]).map((paragraph, index) => (
+                <p key={`${article.id}-paragraph-${index}`} className="mb-5 text-base leading-8">
+                  {paragraph}
+                </p>
+              ))
+            )}
           </div>
 
           {article.external_url && (() => {
@@ -198,18 +201,31 @@ export default function BlogArticlePage() {
             if (ytId) {
               return (
                 <div className="mt-8">
-                  <div className="relative w-full overflow-hidden rounded-2xl" style={{ paddingBottom: '56.25%' }}>
-                    <iframe
-                      className="absolute inset-0 h-full w-full"
-                      src={`https://www.youtube.com/embed/${ytId}`}
-                      title="Video"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
+                  <a
+                    href={article.external_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group relative block overflow-hidden rounded-2xl border border-slate-200 bg-slate-900"
+                  >
+                    <img
+                      src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                      alt="Video"
+                      className="aspect-video w-full object-cover opacity-80 transition group-hover:opacity-70"
                     />
-                  </div>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-4xl text-slate-900 shadow-lg transition group-hover:scale-110">
+                        ▶
+                      </span>
+                      <span className="rounded-full bg-black/60 px-4 py-1.5 text-xs font-semibold text-white">
+                        Ver en YouTube ↗
+                      </span>
+                    </div>
+                  </a>
                 </div>
               );
             }
+            // Skip WhatsApp or other non-video URLs
+            if (/wa\.me|whatsapp\.com/i.test(article.external_url)) return null;
             return (
               <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5 flex items-center gap-4">
                 <div className="flex-1">
@@ -230,9 +246,9 @@ export default function BlogArticlePage() {
           <div className="mt-10 rounded-2xl bg-slate-950 px-6 py-8 text-white">
             <h3 className="font-heading text-2xl font-black text-white">¿Quieres aplicar esto a tu próxima compra o inversión?</h3>
             <p className="mt-2 max-w-2xl text-white/90">Te ayudamos a seleccionar zonas, analizar plusvalía y filtrar propiedades según tu objetivo real.</p>
-            <Link to="/contact" className="mt-5 inline-flex rounded-xl bg-brand-500 px-6 py-3 font-bold text-white transition hover:bg-brand-700">
+            <a href="https://wa.me/524427070872?text=%C2%A1Hola!%20Quiero%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios%20inmobiliarios." target="_blank" rel="noreferrer" className="mt-5 inline-flex rounded-xl bg-brand-500 px-6 py-3 font-bold text-white transition hover:bg-brand-700">
               Hablar con un asesor ahora
-            </Link>
+            </a>
           </div>
         </div>
       </article>

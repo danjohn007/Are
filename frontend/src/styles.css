@@ -5,8 +5,8 @@
 @tailwind utilities;
 
 :root {
-  --font-heading: 'Avenir LT Std 95 Black', 'Avenir LT Std', Avenir, Roboto, sans-serif;
-  --font-subheading: 'Avenir LT Std 45 Book', 'Avenir LT Std', Avenir, Roboto, sans-serif;
+  --font-heading: 'Raleway', 'Avenir LT Std 95 Black', 'Avenir LT Std', Avenir, sans-serif;
+  --font-subheading: 'Raleway', 'Avenir LT Std 45 Book', 'Avenir LT Std', Avenir, sans-serif;
   --font-body: 'Roboto', sans-serif;
   --color-brand: #BC561D;
   --color-brand-soft: #ecd7ca;
@@ -19,6 +19,8 @@
 html {
   background-color: var(--color-isabelline);
   scroll-behavior: smooth;
+  /* Prevent horizontal overflow on all screen sizes */
+  overflow-x: hidden;
 }
 
 body {
@@ -26,6 +28,25 @@ body {
   background: linear-gradient(180deg, #f7f3f0 0%, #ffffff 34%, #f1f0f0 100%);
   color: var(--color-arsenic);
   font-family: var(--font-body);
+  overflow-x: hidden;
+  /* Prevent iOS from auto-adjusting font size on orientation change */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
+/* Ensure nothing overflows horizontally */
+* {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+img, video, iframe, embed, object {
+  max-width: 100%;
 }
 
 .section-shell {

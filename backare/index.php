@@ -343,14 +343,22 @@ try {
     // ─── Propiedades ─────────────────────────────────────────────────────────
     if ($path === '/properties' && $method === 'GET') {
         tokko_auto_sync();
-        $city      = $_GET['city'] ?? null;
-        $operation = $_GET['operation_type'] ?? null;
-        $kind      = $_GET['listing_kind'] ?? null;
-        $rawLimit  = $_GET['limit'] ?? null;
-        $returnAll = $rawLimit === null || $rawLimit === '' || strtolower((string)$rawLimit) === 'all';
+        $city          = $_GET['city'] ?? null;
+        $operation     = $_GET['operation_type'] ?? null;
+        $kind          = $_GET['listing_kind'] ?? null;
+        $property_type = $_GET['property_type'] ?? null;
+        $rawLimit      = $_GET['limit'] ?? null;
+        $returnAll     = $rawLimit === null || $rawLimit === '' || strtolower((string)$rawLimit) === 'all';
 
         $where  = [];
         $params = [];
+
+        // Exclude properties published by "ARE Homes" branch only when listing regular properties
+        // (developments are managed separately and should all be shown)
+        if ($kind !== 'development') {
+            $where[] = "(details_json IS NULL OR LOWER(details_json) NOT LIKE '%\"name\":\"are homes%')";
+        }
+
         if ($city) {
             $where[]              = 'city LIKE :city';
             $params[':city']      = '%' . $city . '%';
@@ -365,6 +373,10 @@ try {
         } else {
             // Units are only fetched through /properties/{id}/units, not the main list
             $where[] = "listing_kind != 'unit'";
+        }
+        if ($property_type) {
+            $where[]                   = 'LOWER(property_type) = LOWER(:property_type)';
+            $params[':property_type']  = $property_type;
         }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';

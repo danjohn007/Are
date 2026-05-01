@@ -20,7 +20,7 @@ export default function ServicesPage() {
   return (
     <section className="section-shell py-14">
       <div className="mb-10 text-center">
-        <h2 className="font-heading text-4xl font-black text-slate-950">Servicios Inmobiliarios</h2>
+        <h2 className="font-heading text-4xl font-black text-brand-500">Servicios Inmobiliarios</h2>
         <p className="mt-2 text-gray-600">Servicios profesionales especializados con formularios dinámicos y respuesta inmediata a tus necesidades.</p>
       </div>
 

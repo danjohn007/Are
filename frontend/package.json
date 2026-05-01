@@ -18,6 +18,7 @@
     "real-estate-portal-system": "file:.."
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",

@@ -42,8 +42,8 @@ export default {
         }
       },
       fontFamily: {
-        heading: ['"Avenir LT Std 95 Black"', '"Avenir LT Std"', 'Avenir', 'Roboto', 'sans-serif'],
-        subheading: ['"Avenir LT Std 45 Book"', '"Avenir LT Std"', 'Avenir', 'Roboto', 'sans-serif'],
+        heading: ['Raleway', '"Avenir LT Std 95 Black"', '"Avenir LT Std"', 'Avenir', 'sans-serif'],
+        subheading: ['Raleway', '"Avenir LT Std 45 Book"', '"Avenir LT Std"', 'Avenir', 'sans-serif'],
         body: ['Roboto', 'sans-serif']
       },
       backgroundImage: {
@@ -51,5 +51,5 @@ export default {
       }
     }
   },
-  plugins: []
+  plugins: [require('@tailwindcss/typography')]
 };

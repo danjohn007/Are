@@ -74,9 +74,9 @@ export default function NewsPage() {
             placeholder="Busca por tema: plusvalía, compra, renta, inversión..."
             className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-white/70 focus:border-white/50 focus:outline-none"
           />
-          <Link to="/contact" className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-orange-50">
+          <a href="https://wa.me/524427070872?text=%C2%A1Hola!%20Quiero%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios%20inmobiliarios." target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-orange-50">
             Hablar con un asesor
-          </Link>
+          </a>
         </div>
       </div>
 

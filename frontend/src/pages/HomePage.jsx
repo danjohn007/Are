@@ -52,19 +52,21 @@ export default function HomePage() {
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-gray-300">
               Conectamos personas con espacios que transforman su vida. Compra, vende o renta con la asesoría de los mejores especialistas.
             </p>
-            <div className="mt-10 flex flex-wrap gap-4">
+            <div className="mt-10 flex flex-nowrap gap-4">
               <Link
                 to="/properties"
-                className="rounded-xl bg-brand-500 px-8 py-4 font-bold text-white shadow-lg transition hover:bg-brand-700"
+                className="rounded-xl bg-brand-500 px-6 py-4 font-bold text-white shadow-lg transition hover:bg-brand-700 whitespace-nowrap"
               >
                 Ver propiedades
               </Link>
-              <Link
-                to="/contact"
-                className="rounded-xl border border-white/30 px-8 py-4 font-bold text-white transition hover:border-brand-500 hover:text-brand-500"
+              <a
+                href="https://wa.me/524427070872?text=%C2%A1Hola!%20Quiero%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios%20inmobiliarios."
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl border border-white/30 px-6 py-4 font-bold text-white transition hover:border-brand-500 hover:text-brand-500 whitespace-nowrap"
               >
                 Hablar con un asesor
-              </Link>
+              </a>
             </div>
           </div>
         </div>
@@ -85,7 +87,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Features */}
+      {/* Features + Propiedades destacadas */}
       <section className="py-20">
         <div className="section-shell">
           <div className="mb-12 text-center" data-aos="fade-up">
@@ -110,33 +112,31 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* Featured properties CTA */}
-      <section className="bg-isabelline py-20">
-        <div className="section-shell grid items-center gap-10 lg:grid-cols-2">
-          <div data-aos="fade-right">
-            <span className="font-subheading text-xs uppercase tracking-[0.22em] text-brand-500">Propiedades destacadas</span>
-            <h2 className="mt-2 font-heading text-3xl font-black text-slate-950 md:text-4xl">
-              Encuentra el espacio ideal para ti
-            </h2>
-            <p className="mt-4 text-gray-600">
-              Explora nuestro catálogo con las mejores opciones en ubicaciones estratégicas, precios competitivos y todo el respaldo de ARE.
-            </p>
-            <Link
-              to="/properties"
-              className="mt-8 inline-block rounded-xl bg-brand-500 px-8 py-4 font-bold text-white transition hover:bg-brand-700"
-            >
-              Explorar catálogo
-            </Link>
-          </div>
-          <div data-aos="fade-left" className="overflow-hidden rounded-3xl shadow-2xl">
-            <img
-              src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900"
-              alt="Propiedad destacada"
-              className="h-72 w-full object-cover transition duration-500 hover:scale-105"
-            />
+          {/* Propiedades destacadas */}
+          <div className="mt-10 grid items-center gap-6 lg:grid-cols-2" data-aos="fade-up">
+            <div>
+              <span className="font-subheading text-xs uppercase tracking-[0.22em] text-brand-500">Propiedades destacadas</span>
+              <h2 className="mt-1 font-heading text-2xl font-black text-slate-950 md:text-4xl">
+                Encuentra el espacio ideal para ti
+              </h2>
+              <p className="mt-3 text-sm text-gray-600 md:text-base">
+                Explora nuestro catálogo con las mejores opciones en ubicaciones estratégicas, precios competitivos y todo el respaldo de ARE.
+              </p>
+              <Link
+                to="/properties"
+                className="mt-5 inline-block rounded-xl bg-brand-500 px-7 py-3 font-bold text-white transition hover:bg-brand-700"
+              >
+                Explorar catálogo
+              </Link>
+            </div>
+            <div data-aos="fade-left" className="overflow-hidden rounded-3xl shadow-2xl">
+              <img
+                src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900"
+                alt="Propiedad destacada"
+                className="h-56 w-full object-cover transition duration-500 hover:scale-105 md:h-72"
+              />
+            </div>
           </div>
         </div>
       </section>
