@@ -81,7 +81,11 @@ function log_info(string $message, array $context = []): void
         'message' => $message,
         'context' => $context,
     ];
-    file_put_contents(__DIR__ . '/../logs/app.log', json_encode($payload) . PHP_EOL, FILE_APPEND);
+    $logDir = __DIR__ . '/../logs';
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0755, true);
+    }
+    @file_put_contents($logDir . '/app.log', json_encode($payload) . PHP_EOL, FILE_APPEND);
 }
 
 function decode_json_field(mixed $value, array $fallback = []): array

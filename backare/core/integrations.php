@@ -335,7 +335,7 @@ function tokko_sync(): array
                 ':details_json'    => json_encode(tokko_extract_details($item, $item, false), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 ':operation_type'  => tokko_extract_operation_type($item),
                 ':listing_kind'    => 'unit',
-                ':property_type'   => $item['type']['name'] ?? null,
+                ':property_type'   => tokko_translate_property_type($item['type']['name'] ?? ''),
                 ':reference_code'  => $item['reference_code'] ?? null,
                 ':location_full'   => $item['location']['full_location'] ?? null,
                 ':parent_tokko_id' => 'development:' . $devId,
@@ -383,7 +383,7 @@ function tokko_sync(): array
             ':details_json'   => json_encode(tokko_extract_details($item, $source, false), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             ':operation_type' => tokko_extract_operation_type($item),
             ':listing_kind'   => 'property',
-            ':property_type'  => $source['type']['name'] ?? $item['type']['name'] ?? null,
+            ':property_type'  => tokko_translate_property_type($source['type']['name'] ?? $item['type']['name'] ?? ''),
             ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
             ':location_full'   => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
             ':parent_tokko_id' => null,
@@ -477,7 +477,7 @@ function tokko_sync(): array
                 ':details_json'   => json_encode($details, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 ':operation_type' => tokko_extract_operation_type($item),
                 ':listing_kind'   => 'development',
-                ':property_type'  => $source['type']['name'] ?? $item['type']['name'] ?? null,
+                ':property_type'  => tokko_translate_property_type($source['type']['name'] ?? $item['type']['name'] ?? ''),
                 ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
                 ':location_full'   => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
                 ':parent_tokko_id' => null,
@@ -799,9 +799,54 @@ function tokko_fetch_public_description(string $publicUrl): string
     return $cache[$publicUrl];
 }
 
+// Traduce el tipo de propiedad de inglés a español (Tokko API devuelve en inglés)
+function tokko_translate_property_type(string $type): string
+{
+    static $map = [
+        // Inglés → nombre exacto del CRM de Tokko en español
+        'house'              => 'Casa',
+        'apartment'          => 'Departamento',
+        'ph'                 => 'Departamento',
+        'office'             => 'Oficina',
+        'land'               => 'Terreno',
+        'lot'                => 'Terreno',
+        'local'              => 'Local',
+        'store'              => 'Local',
+        'commercial'         => 'Local',
+        'business premises'  => 'Local',
+        'bussiness premises' => 'Local',   // typo en Tokko API
+        'commercial building' => 'Edificio Comercial',
+        'building'           => 'Edificio Comercial',
+        'storage'            => 'Bodega Industrial',
+        'warehouse'          => 'Bodega Industrial',
+        'bodega'             => 'Bodega Industrial',
+        'industrial'         => 'Nave Industrial',
+        'ranch'              => 'Rancho',
+        'farm'               => 'Rancho',
+        'country house'      => 'Casa en condominio',
+        'room'               => 'Departamento',
+        'studio'             => 'Departamento',
+        'development'        => 'Desarrollo',
+        'parking'            => 'Estacionamiento',
+        'hotel'              => 'Hotel',
+        'chalet'             => 'Casa',
+        'duplex'             => 'Casa',
+        'villa'              => 'Casa',
+        'townhouse'          => 'Casa',
+        'field'              => 'Campo',
+        'land field'         => 'Campo',
+    ];
+    $key = strtolower(trim($type));
+    return $map[$key] ?? $type;
+}
+
 function tokko_extract_operation_type(array $item): string
 {
-    $type = strtolower((string)($item['operations'][0]['operation_type'] ?? $item['operations'][0]['operation_type']['name'] ?? 'venta'));
+    $raw = $item['operations'][0]['operation_type'] ?? null;
+    if (is_array($raw)) {
+        $raw = $raw['name'] ?? 'venta';
+    }
+    $type = strtolower((string)$raw);
     return str_contains($type, 'rent') || str_contains($type, 'alquil') || str_contains($type, 'renta') ? 'renta' : 'venta';
 }
 

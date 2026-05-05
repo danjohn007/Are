@@ -65,6 +65,10 @@ CREATE TABLE IF NOT EXISTS articles (
 -- Migration: add external_url column to existing databases
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS external_url TEXT AFTER image_url;
 
+-- Migration: add active and image_url columns to services
+ALTER TABLE services ADD COLUMN active TINYINT(1) NOT NULL DEFAULT 1 AFTER price;
+ALTER TABLE services ADD COLUMN image_url TEXT NULL AFTER active;
+
 CREATE TABLE IF NOT EXISTS leads (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,

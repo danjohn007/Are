@@ -5,6 +5,7 @@ import 'aos/dist/aos.css';
 import PublicLayout from './layouts/PublicLayout';
 import HomePage from './pages/HomePage';
 import ServicesPage from './pages/ServicesPage';
+import ServiceDetailPage from './pages/ServiceDetailPage';
 import PropertiesPage from './pages/PropertiesPage';
 import DevelopmentsPage from './pages/DevelopmentsPage';
 import PropertyDetailPage from './pages/PropertyDetailPage';
@@ -30,6 +31,7 @@ export default function App() {
       <Route element={<PublicLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/services" element={<ServicesPage />} />
+        <Route path="/services/:id" element={<ServiceDetailPage />} />
         <Route path="/properties" element={<PropertiesPage />} />
         <Route path="/properties/:id" element={<PropertyDetailPage />} />
         <Route path="/developments" element={<DevelopmentsPage />} />

@@ -6,10 +6,6 @@ function normalizeType(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
-function capitalize(s) {
-  if (!s) return s;
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-}
 
 export default function PropertiesPage() {
   const [allProperties, setAllProperties] = useState([]);
@@ -43,8 +39,9 @@ export default function PropertiesPage() {
     const base = filter ? allProperties.filter((p) => p.operation_type === filter) : allProperties;
     for (const p of base) {
       if (p.property_type) {
-        const key = normalizeType(p.property_type);
-        if (!seen.has(key)) seen.set(key, capitalize(p.property_type.trim()));
+        const raw = p.property_type.trim();
+        const key = normalizeType(raw);
+        if (!seen.has(key)) seen.set(key, raw);
       }
     }
     return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'es'));
@@ -65,7 +62,7 @@ export default function PropertiesPage() {
       </div>
 
       <div className="mb-10 flex flex-wrap items-center gap-x-6 gap-y-4 rounded-2xl border border-gray-100 bg-white px-6 py-4 shadow-sm">
-        {/* Icon + label */}
+        {/* Icono + etiqueta */}
         <div className="flex items-center gap-2 text-slate-400">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
@@ -75,13 +72,13 @@ export default function PropertiesPage() {
 
         <div className="h-5 w-px bg-gray-200 hidden sm:block" />
 
-        {/* Operation toggle */}
+        {/* Operación */}
         <div className="flex items-center gap-1 rounded-xl border border-gray-100 bg-gray-50 p-1">
           {[{ value: null, label: 'Todos' }, { value: 'venta', label: 'En Venta' }, { value: 'renta', label: 'En Renta' }].map(({ value, label }) => (
             <button
               key={label}
               type="button"
-              onClick={() => setFilter(value)}
+              onClick={() => { setFilter(value); setPropertyType(''); }}
               className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${
                 filter === value
                   ? 'bg-brand-500 text-white shadow-sm'
@@ -93,26 +90,29 @@ export default function PropertiesPage() {
           ))}
         </div>
 
-        <div className="h-5 w-px bg-gray-200 hidden sm:block" />
+        {/* Tipo de propiedad — valores directos de Tokko */}
+        {availableTypes.length > 0 && (
+          <>
+            <div className="h-5 w-px bg-gray-200 hidden sm:block" />
+            <div className="relative">
+              <select
+                value={propertyType}
+                onChange={(e) => setPropertyType(e.target.value)}
+                className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+              >
+                <option value="">Tipo de propiedad</option>
+                {availableTypes.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+              <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </>
+        )}
 
-        {/* Property type select */}
-        <div className="relative">
-          <select
-            value={propertyType}
-            onChange={(e) => setPropertyType(e.target.value)}
-            className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
-          >
-            <option value="">Todos los tipos</option>
-            {availableTypes.map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
-          <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-
-        {/* Results count */}
+        {/* Contador */}
         <span className="ml-auto text-sm text-slate-400">
           {properties.length} resultado{properties.length !== 1 ? 's' : ''}
         </span>

@@ -6,8 +6,15 @@ export default function ContactPage() {
   const [searchParams] = useSearchParams();
   const propertyId    = searchParams.get('property_id') ? Number(searchParams.get('property_id')) : null;
   const propertyTitle = searchParams.get('property_title') || null;
+  const serviceId     = searchParams.get('service_id') ? Number(searchParams.get('service_id')) : null;
+  const serviceName   = searchParams.get('service_name') || null;
 
-  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
+  const [form, setForm] = useState(() => ({
+    name: '',
+    email: '',
+    phone: '',
+    message: serviceName ? `Necesito información sobre el servicio: ${serviceName}\n\n` : '',
+  }));
   const [loading, setLoading] = useState(false);
   const [captcha, setCaptcha] = useState(() => {
     const left = Math.floor(Math.random() * 9) + 1;
@@ -37,10 +44,18 @@ export default function ContactPage() {
     setLoading(true);
 
     try {
+      // Construir el mensaje final con el servicio siempre incluido
+      const servicePrefix = serviceName
+        ? `Servicio de interés: ${serviceName}\n\n`
+        : '';
+      const finalMessage = servicePrefix + (form.message || '');
+
       await api.post('/leads', {
         ...form,
+        message: finalMessage,
         source: 'contact-page',
         ...(propertyId ? { property_id: propertyId } : {}),
+        ...(serviceId  ? { service_id: serviceId }   : {}),
       });
       setForm({ name: '', email: '', phone: '', message: '' });
       refreshCaptcha();
@@ -79,6 +94,14 @@ export default function ContactPage() {
               <p className="text-xs font-semibold uppercase tracking-widest text-white/70">Consulta activa</p>
               <p className="mt-2 text-base font-semibold text-white">{decodeURIComponent(propertyTitle)}</p>
               <p className="mt-1 text-sm text-white/75">El formulario se enviará vinculado a esta propiedad.</p>
+            </div>
+          )}
+
+          {serviceName && (
+            <div className="mt-8 rounded-2xl border border-brand-200/30 bg-brand-400/10 p-4 backdrop-blur-sm">
+              <p className="text-xs font-semibold uppercase tracking-widest text-white/70">Servicio de interés</p>
+              <p className="mt-2 text-base font-semibold text-white">{decodeURIComponent(serviceName)}</p>
+              <p className="mt-1 text-sm text-white/75">Tu solicitud llegará vinculada a este servicio.</p>
             </div>
           )}
         </aside>

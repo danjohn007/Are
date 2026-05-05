@@ -129,11 +129,18 @@ try {
     // ─── Servicios ───────────────────────────────────────────────────────────
     if ($path === '/services' && $method === 'GET') {
         [$page, $limit, $offset] = pagination();
-        $rows = db()->prepare('SELECT * FROM services ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+        $returnAll = isset($_GET['all']) && $_GET['all'] === '1';
+        if ($returnAll) {
+            require_admin();
+            $rows  = db()->prepare('SELECT * FROM services ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+            $total = (int)db()->query('SELECT COUNT(*) FROM services')->fetchColumn();
+        } else {
+            $rows  = db()->prepare('SELECT * FROM services WHERE active = 1 ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+            $total = (int)db()->query('SELECT COUNT(*) FROM services WHERE active = 1')->fetchColumn();
+        }
         $rows->bindValue(':limit', $limit, PDO::PARAM_INT);
         $rows->bindValue(':offset', $offset, PDO::PARAM_INT);
         $rows->execute();
-        $total = (int)db()->query('SELECT COUNT(*) FROM services')->fetchColumn();
         respond(200, ['success' => true, 'data' => $rows->fetchAll(), 'meta' => ['total' => $total, 'page' => $page, 'limit' => $limit, 'totalPages' => (int)ceil($total / $limit)]]);
     }
 
@@ -151,12 +158,14 @@ try {
         if (empty($input['name']) || empty($input['slug']) || !isset($input['price'])) {
             respond(422, ['success' => false, 'message' => 'name, slug y price son requeridos']);
         }
-        $stmt = db()->prepare('INSERT INTO services (name, slug, description, price, form_schema) VALUES (:name, :slug, :description, :price, :form_schema)');
+        $stmt = db()->prepare('INSERT INTO services (name, slug, description, price, active, image_url, form_schema) VALUES (:name, :slug, :description, :price, :active, :image_url, :form_schema)');
         $stmt->execute([
             ':name'        => $input['name'],
             ':slug'        => $input['slug'],
             ':description' => $input['description'] ?? null,
             ':price'       => (float)$input['price'],
+            ':active'      => isset($input['active']) ? ((bool)$input['active'] ? 1 : 0) : 1,
+            ':image_url'   => $input['image_url'] ?? null,
             ':form_schema' => isset($input['form_schema']) ? json_encode($input['form_schema']) : null,
         ]);
         $id = (int)db()->lastInsertId();
@@ -168,12 +177,14 @@ try {
     if (preg_match('#^/services/(\d+)$#', $path, $m) && $method === 'PUT') {
         require_admin();
         $input = json_input();
-        $stmt = db()->prepare('UPDATE services SET name=:name, slug=:slug, description=:description, price=:price, form_schema=:form_schema, updated_at=NOW() WHERE id=:id');
+        $stmt = db()->prepare('UPDATE services SET name=:name, slug=:slug, description=:description, price=:price, active=:active, image_url=:image_url, form_schema=:form_schema, updated_at=NOW() WHERE id=:id');
         $stmt->execute([
             ':name'        => $input['name'] ?? '',
             ':slug'        => $input['slug'] ?? '',
             ':description' => $input['description'] ?? null,
             ':price'       => (float)($input['price'] ?? 0),
+            ':active'      => isset($input['active']) ? ((bool)$input['active'] ? 1 : 0) : 1,
+            ':image_url'   => $input['image_url'] ?? null,
             ':form_schema' => isset($input['form_schema']) ? json_encode($input['form_schema']) : null,
             ':id'          => (int)$m[1],
         ]);
@@ -226,6 +237,10 @@ try {
             $q->execute([':id' => $lead['service_id']]);
             $serviceName = $q->fetchColumn() ?: null;
         }
+        // Fallback: usar el nombre enviado directamente desde el frontend
+        if (!$serviceName && !empty($input['service_name'])) {
+            $serviceName = (string)$input['service_name'];
+        }
 
         send_whatsapp($input['phone'], 'Hola ' . $lead['name'] . ', recibimos tu solicitud. Te contactaremos pronto. — ARE');
 
@@ -253,11 +268,13 @@ try {
             }
         }
 
+        $tokkoMessage = $input['message'] ?? '';
+
         $tokkoOk = tokko_send_contact(
             $lead['name'],
             $input['email'],
             $input['phone'],
-            $input['message'] ?? null,
+            $tokkoMessage !== '' ? $tokkoMessage : null,
             $tokkoRemoteId,
             $tokkoListingKind
         );
@@ -530,11 +547,18 @@ try {
     // ─── Artículos ───────────────────────────────────────────────────────────
     if ($path === '/articles' && $method === 'GET') {
         [$page, $limit, $offset] = pagination();
-        $stmt = db()->prepare('SELECT * FROM articles WHERE published = 1 ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+        $returnAll = isset($_GET['all']) && $_GET['all'] === '1';
+        if ($returnAll) {
+            require_admin();
+            $stmt  = db()->prepare('SELECT * FROM articles ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+            $total = (int)db()->query('SELECT COUNT(*) FROM articles')->fetchColumn();
+        } else {
+            $stmt  = db()->prepare('SELECT * FROM articles WHERE published = 1 ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+            $total = (int)db()->query('SELECT COUNT(*) FROM articles WHERE published = 1')->fetchColumn();
+        }
         $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
-        $total = (int)db()->query('SELECT COUNT(*) FROM articles WHERE published = 1')->fetchColumn();
         respond(200, ['success' => true, 'data' => $stmt->fetchAll(), 'meta' => ['total' => $total, 'page' => $page, 'limit' => $limit, 'totalPages' => (int)ceil($total / $limit)]]);
     }
 

@@ -472,6 +472,13 @@ export default function PropertyDetailPage() {
                 {showFullDescription ? 'Mostrar menos' : 'Mostrar mas'}
               </button>
             )}
+            {/* Botón visible en móvil (oculto en pantallas grandes donde ya aparece en el panel derecho) */}
+            <Link
+              to={`/contact?property_id=${item.id}&property_title=${encodeURIComponent(item.title || 'esta propiedad')}`}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-500 px-6 py-4 text-base font-bold text-white shadow-md transition hover:bg-brand-700 lg:hidden"
+            >
+              Solicitar más información
+            </Link>
           </section>
 
           {(hasCoords || item.address || item.location_full || item.city) && (
