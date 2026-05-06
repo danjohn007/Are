@@ -12,6 +12,7 @@ import PropertyDetailPage from './pages/PropertyDetailPage';
 import NewsPage from './pages/NewsPage';
 import BlogArticlePage from './pages/BlogArticlePage';
 import ContactPage from './pages/ContactPage';
+import AboutPage from './pages/AboutPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import { useAuth } from './context/AuthContext';
@@ -23,7 +24,13 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   useEffect(() => {
-    AOS.init({ duration: 700, once: true });
+    AOS.init({
+      duration: 750,
+      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+      once: true,
+      offset: 60,
+      delay: 0,
+    });
   }, []);
 
   return (
@@ -41,6 +48,7 @@ export default function App() {
         <Route path="/blog/:slug" element={<BlogArticlePage />} />
         <Route path="/news/:slug" element={<BlogArticlePage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/nosotros" element={<AboutPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/admin"

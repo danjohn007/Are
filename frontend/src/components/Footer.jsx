@@ -46,7 +46,7 @@ export default function Footer() {
     { to: '/developments', label: 'Desarrollos' },
     { to: '/services', label: 'Servicios' },
     { to: '/blog', label: 'BLOG' },
-    { to: '/contact', label: 'Contacto' },
+    { to: '/contact', label: 'NOSOTROS' },
   ];
 
   return (
@@ -68,7 +68,7 @@ export default function Footer() {
 
         {/* Navigation */}
         <div>
-          <h4 className="mb-4 font-subheading text-sm uppercase tracking-[0.2em] text-slate-950">Navegacion</h4>
+          <h4 className="mb-4 font-subheading text-sm uppercase tracking-[0.2em] text-slate-950">Navegación</h4>
           <ul className="space-y-2 text-sm">
             {footerLinks.map((item) => (
               <li key={item.to}>
@@ -95,7 +95,7 @@ export default function Footer() {
           <h4 className="mb-4 font-subheading text-sm uppercase tracking-[0.2em] text-slate-950">Oficinas</h4>
           <p className="text-sm leading-relaxed">
             Prol. Bernardo Quintana No. 300 Piso 14-A Torre 57 CP 76090<br />
-            Centro Sur, Queretaro, Qro
+            Centro Sur, Querétaro, Qro
           </p>
           <a
             href="https://maps.app.goo.gl/u5hinV12sCAoSfmB9"

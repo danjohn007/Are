@@ -70,6 +70,324 @@ function parseGeo(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+const TOKKO_TRANSLATIONS = {
+  // property_condition
+  good: 'Buenas condiciones',
+  good_condition: 'Buenas condiciones',
+  excellent: 'Excelentes condiciones',
+  excellent_condition: 'Excelentes condiciones',
+  regular: 'Condiciones regulares',
+  regular_condition: 'Condiciones regulares',
+  bad: 'Necesita reparación',
+  bad_condition: 'Necesita reparación',
+  needs_repair: 'Necesita reparación',
+  new: 'A estrenar',
+  // situation
+  forsale: 'En venta',
+  for_sale: 'En venta',
+  'for sale': 'En venta',
+  rent: 'En renta',
+  for_rent: 'En renta',
+  'for rent': 'En renta',
+  rented: 'Rentado',
+  sold: 'Vendido',
+  // credit_eligible
+  yes: 'Sí',
+  no: 'No',
+  true: 'Sí',
+  false: 'No',
+  // disposition / land shape
+  irregular: 'Irregular',
+  rectangular: 'Rectangular',
+  triangular: 'Triangular',
+  // orientation / topography
+  flat: 'Plano',
+  slope: 'Con pendiente',
+  corner: 'Esquina',
+  // infrastructure / services (Tokko tags)
+  sewage: 'Drenaje',
+  electricity: 'Electricidad',
+  'underground electricity': 'Electricidad subterránea',
+  phone: 'Línea telefónica',
+  internet: 'Internet',
+  pavement: 'Pavimentación',
+  'public lighting': 'Alumbrado público',
+  'rainwater drainage': 'Drenaje pluvial',
+  biodigesters: 'Biodigestores',
+  biodigester: 'Biodigestor',
+  water: 'Agua',
+  gas: 'Gas',
+  'natural gas': 'Gas natural',
+  sewer: 'Alcantarillado',
+  'potable water': 'Agua potable',
+  'water tank': 'Cisterna',
+  cistern: 'Cisterna',
+  drainage: 'Drenaje',
+  'street lighting': 'Alumbrado público',
+  'paved road': 'Calle pavimentada',
+  sidewalk: 'Banqueta',
+  // amenity tags
+  gym: 'Gimnasio',
+  'swimming pool': 'Alberca',
+  pool: 'Alberca',
+  parking: 'Estacionamiento',
+  elevator: 'Elevador',
+  security: 'Seguridad',
+  rooftop: 'Roof Garden',
+  'roof garden': 'Roof Garden',
+  lobby: 'Lobby',
+  garden: 'Jardín',
+  terrace: 'Terraza',
+  balcony: 'Balcón',
+  laundry: 'Lavandería',
+  storage: 'Bodega',
+  concierge: 'Concierge',
+  playground: 'Área de juegos',
+  'pet friendly': 'Pet Friendly',
+  'co-working': 'Co-working',
+  coworking: 'Co-working',
+  bbq: 'Asador',
+  grill: 'Asador',
+  jacuzzi: 'Jacuzzi',
+  sauna: 'Sauna',
+  spa: 'Spa',
+  cinema: 'Cine',
+  'business center': 'Centro de negocios',
+  'event room': 'Salón de eventos',
+  'sports court': 'Cancha deportiva',
+  'tennis court': 'Cancha de tenis',
+  'basketball court': 'Cancha de basketball',
+  'air conditioning': 'Aire acondicionado',
+  heating: 'Calefacción',
+  'solar panels': 'Paneles solares',
+  generator: 'Planta de luz',
+  clubhouse: 'Club House',
+  'club house': 'Club House',
+  reception: 'Recepción',
+  conference: 'Sala de conferencias',
+  'conference room': 'Sala de conferencias',
+  // common property types
+  house: 'Casa',
+  'single family home': 'Casa Unifamiliar',
+  'single family': 'Casa Unifamiliar',
+  apartment: 'Departamento',
+  land: 'Terreno',
+  lot: 'Lote',
+  office: 'Oficina',
+  'office building': 'Edificio de Oficinas',
+  building: 'Edificio',
+  'residential building': 'Edificio Residencial',
+  'commercial building': 'Edificio Comercial',
+  warehouse: 'Bodega',
+  commercial: 'Local Comercial',
+  'commercial local': 'Local Comercial',
+  'commercial space': 'Local Comercial',
+  local: 'Local Comercial',
+  'country club': 'Club de Campo',
+  condominium: 'Condominio',
+  'industrial condo': 'Condominio Industrial',
+  'industrial condominium': 'Condominio Industrial',
+  studio: 'Estudio',
+  penthouse: 'Penthouse',
+  villa: 'Villa',
+  ranch: 'Rancho',
+  farm: 'Finca',
+  hacienda: 'Hacienda',
+  hotel: 'Hotel',
+  'mixed use': 'Uso Mixto',
+  'retail space': 'Local Comercial',
+  shop: 'Local Comercial',
+  'industrial land': 'Terreno Industrial',
+  'residential land': 'Terreno Residencial',
+  'commercial land': 'Terreno Comercial',
+  'industrial warehouse': 'Nave Industrial',
+  duplex: 'Dúplex',
+  townhouse: 'Casa en Condominio',
+  loft: 'Loft',
+  cabin: 'Cabaña',
+  'beach house': 'Casa de Playa',
+  chalet: 'Chalet',
+  development: 'Desarrollo',
+  residential: 'Residencial',
+  'residential complex': 'Complejo Residencial',
+  'housing complex': 'Complejo Habitacional',
+  fractional: 'Fraccional',
+  'fractional land': 'Terreno Fraccional',
+  'gated community': 'Privada',
+  'industrial park': 'Parque Industrial',
+  'business park': 'Parque Empresarial',
+  'shopping center': 'Centro Comercial',
+  mall: 'Centro Comercial',
+  'parking lot': 'Estacionamiento',
+  'parking space': 'Cajón de Estacionamiento',
+  suite: 'Suite',
+  'serviced apartment': 'Apartamento de Servicio',
+  'garden house': 'Casa con Jardín',
+  // property_condition (variantes adicionales)
+  'good condition': 'Buenas condiciones',
+  'excellent condition': 'Excelentes condiciones',
+  'regular condition': 'Condiciones regulares',
+  'bad condition': 'Necesita reparación',
+  'need repairs': 'Necesita reparación',
+  'new building': 'Edificio nuevo',
+  'to remodel': 'Para remodelar',
+  'under construction': 'En construcción',
+  'habitability certificate': 'Con cédula de habitabilidad',
+  // situation (variante)
+  transfer: 'Traspaso',
+  // orientation (puntos cardinales)
+  north: 'Norte',
+  south: 'Sur',
+  east: 'Oriente',
+  west: 'Poniente',
+  northeast: 'Noreste',
+  northwest: 'Noroeste',
+  southeast: 'Sureste',
+  southwest: 'Suroeste',
+  front: 'Frente',
+  back: 'Trasero',
+  interior: 'Interior',
+  exterior: 'Exterior',
+  // disposition (variantes)
+  internal: 'Interior',
+  lateral: 'Lateral',
+  // construction_status
+  finished: 'Terminado',
+  completed: 'Terminado',
+  construction: 'En construcción',
+  presale: 'Pre-venta',
+  'pre-sale': 'Pre-venta',
+  'pre sale': 'Pre-venta',
+  proyected: 'En planos',
+  projected: 'En planos',
+  planning: 'En planeación',
+  delivery: 'Entrega',
+  'sold out': 'Agotado',
+  // tags Tokko específicos
+  hall: 'Vestíbulo',
+  'lobby hall': 'Vestíbulo',
+  'fire detector': 'Detector de incendios',
+  'fire alarm': 'Alarma contra incendios',
+  'smoke detector': 'Detector de humo',
+  'modern style': 'Estilo moderno',
+  'colonial style': 'Estilo colonial',
+  'contemporary style': 'Estilo contemporáneo',
+  'one level': 'Un nivel',
+  'single level': 'Un nivel',
+  cctv: 'Cámaras CCTV',
+  'electricity to be connected': 'Toma de electricidad',
+  'water to be connected': 'Toma de agua',
+  'gas to be connected': 'Toma de gas',
+  'aluminium windows': 'Ventanas de aluminio',
+  'aluminum windows': 'Ventanas de aluminio',
+  'glass windows': 'Ventanas de vidrio',
+  '24 hour security': 'Seguridad 24 horas',
+  '24/7 security': 'Seguridad 24/7',
+  'fixed garage': 'Cochera fija',
+  lift: 'Elevador',
+  'main boulevard': 'Sobre boulevard principal',
+  'administrative office building': 'Edificio de oficinas administrativas',
+  'drinking water': 'Agua potable',
+  'night security': 'Vigilancia nocturna',
+  'internal land': 'Terreno interior',
+  'private security company': 'Empresa de seguridad privada',
+  'good rental potential': 'Buen potencial de renta',
+  'quiet location': 'Zona tranquila',
+  'security grills': 'Rejas de seguridad',
+  'security grill': 'Reja de seguridad',
+  'concrete floors': 'Pisos de concreto',
+  'concrete floor': 'Piso de concreto',
+  'trifasic energy': 'Energía trifásica',
+  'three phase energy': 'Energía trifásica',
+  'access control': 'Control de acceso',
+  'maintenance service': 'Servicio de mantenimiento',
+  'issue invoice': 'Factura disponible',
+  store: 'Bodega',
+  'entrance security': 'Seguridad en acceso',
+  'immediate deed': 'Escrituración inmediata',
+  'direct sale': 'Venta directa',
+  condomini: 'Condominio',
+  'solar heater': 'Calentador solar',
+  'water cistern': 'Cisterna de agua',
+  'electric plant': 'Planta de luz',
+  'backup power': 'Energía de respaldo',
+  'natural ventilation': 'Ventilación natural',
+  'cross ventilation': 'Ventilación cruzada',
+  'wood floors': 'Pisos de madera',
+  'marble floors': 'Pisos de mármol',
+  'porcelain floors': 'Pisos de porcelanato',
+  'laminated floors': 'Pisos laminados',
+  'ceramic floors': 'Pisos de cerámica',
+  'granite countertops': 'Encimeras de granito',
+  'marble countertops': 'Encimeras de mármol',
+  'quartz countertops': 'Encimeras de cuarzo',
+  'stainless steel': 'Acero inoxidable',
+  'double height': 'Doble altura',
+  'high ceilings': 'Techos altos',
+  skylight: 'Claraboya',
+  'panoramic view': 'Vista panorámica',
+  'sea view': 'Vista al mar',
+  'lake view': 'Vista al lago',
+  'pool view': 'Vista a la alberca',
+  'garden view': 'Vista al jardín',
+  'bay windows': 'Ventanales',
+  'electric blinds': 'Persianas eléctricas',
+  curtains: 'Cortinas',
+  'dressing room': 'Vestidor',
+  'utility room': 'Cuarto de utilería',
+  'wine cellar': 'Cava de vinos',
+  'home theater': 'Home Theater',
+  'home office': 'Home Office',
+  'private pool': 'Alberca privada',
+  'shared pool': 'Alberca compartida',
+  'heated pool': 'Alberca climatizada',
+  'infinity pool': 'Alberca infinity',
+  'adults pool': 'Alberca para adultos',
+  'kids pool': 'Alberca infantil',
+  'mini gym': 'Mini gimnasio',
+  'yoga room': 'Sala de yoga',
+  'pilates room': 'Sala de pilates',
+  'massage room': 'Sala de masajes',
+  'bicycle parking': 'Estacionamiento de bicicletas',
+  'bike rack': 'Rack de bicicletas',
+  'electric car charger': 'Cargador para auto eléctrico',
+  'ev charger': 'Cargador para auto eléctrico',
+  'shuttle service': 'Servicio de transporte',
+  'valet parking': 'Valet parking',
+  'storage unit': 'Cuarto de bodega',
+  'package room': 'Cuarto de paquetes',
+  'trash chute': 'Ducto de basura',
+  recycling: 'Reciclaje',
+  'water treatment': 'Tratamiento de agua',
+  'rainwater collection': 'Captación de agua pluvial',
+  'led lighting': 'Iluminación LED',
+  'energy efficient': 'Eficiencia energética',
+  'leed certified': 'Certificación LEED',
+  'earthquake resistant': 'Resistente a sismos',
+  'loading dock': 'Andén de carga',
+  'freight elevator': 'Elevador de carga',
+  'office space': 'Espacio de oficinas',
+  'open office': 'Oficina abierta',
+  'private office': 'Oficina privada',
+  'meeting room': 'Sala de reuniones',
+  boardroom: 'Sala de juntas',
+  cafeteria: 'Cafetería',
+  restaurant: 'Restaurante',
+  'convenience store': 'Tienda de conveniencia',
+  pharmacy: 'Farmacia',
+  atm: 'Cajero automático',
+  'fitness center': 'Gimnasio',
+  'health club': 'Club de salud',
+  'beauty salon': 'Salón de belleza',
+  'dry cleaning': 'Tintorería',
+};
+
+function translateTokkoValue(value) {
+  if (value === null || value === undefined || value === '') return value;
+  const normalized = String(value).toLowerCase().trim().replace(/_/g, ' ');
+  return TOKKO_TRANSLATIONS[normalized] ?? value;
+}
+
 function MapTiles({ lat, lon, zoom = 15 }) {
   const TILE = 256;
   const n = Math.pow(2, zoom);
@@ -202,33 +520,33 @@ export default function PropertyDetailPage() {
   const shortDescription = (item.description || '').slice(0, 600);
 
   const detailEntries = [
-    ['Tipo', item.property_type],
+    ['Tipo', translateTokkoValue(item.property_type)],
     ['Referencia', item.reference_code],
-    ['Operacion', badgeLabel],
-    ['Ubicacion', item.location_full || item.address || item.city],
-    ['Direccion', item.address],
-    ['Codigo postal', item.details?.zip_code],
+    ['Operación', badgeLabel],
+    ['Ubicación', item.location_full || item.address || item.city],
+    ['Dirección', item.address],
+    ['Código postal', item.details?.zip_code],
     ['Superficie total', formatValue(Number(item.area || item.details?.total_surface || 0).toLocaleString('es-MX'), ' m²')],
     ['Superficie techada', item.details?.roofed_surface ? `${Number(item.details.roofed_surface).toLocaleString('es-MX')} m²` : null],
     ['Superficie sin techar', item.details?.unroofed_surface ? `${Number(item.details.unroofed_surface).toLocaleString('es-MX')} m²` : null],
-    ['Area privada', item.details?.private_area ? `${Number(item.details.private_area).toLocaleString('es-MX')} m²` : null],
+    ['Área privada', item.details?.private_area ? `${Number(item.details.private_area).toLocaleString('es-MX')} m²` : null],
     ['Estacionamientos', item.details?.parking_lot_amount],
-    ['Recamaras', item.bedrooms],
-    ['Banos', item.bathrooms],
-    ['Condicion', item.details?.property_condition],
-    ['Situacion', item.details?.situation],
-    ['Antiguedad', item.details?.age],
-    ['Fecha de construccion', item.details?.construction_date],
+    ['Recámaras', item.bedrooms],
+    ['Baños', item.bathrooms],
+    ['Condición', translateTokkoValue(item.details?.property_condition)],
+    ['Situación', translateTokkoValue(item.details?.situation)],
+    ['Antigüedad', item.details?.age],
+    ['Fecha de construcción', item.details?.construction_date],
     ['Gastos / mantenimiento', item.details?.expenses ? `$${Number(item.details.expenses).toLocaleString('es-MX')} MXN` : null],
   ].filter(([, value]) => value !== null && value !== undefined && value !== '' && value !== '0');
 
   const generalInfo = [
-    ['Zonificacion', item.details?.zonification],
-    ['Antiguedad', item.details?.age],
+    ['Zonificación', item.details?.zonification],
+    ['Antigüedad', item.details?.age],
     ['$ x m²', pricePerM2 ? `$${toNumber(pricePerM2).toLocaleString('es-MX')}` : null],
-    ['Forma de terreno', item.details?.disposition],
-    ['Topografia', item.details?.orientation],
-    ['Credito elegible', item.details?.credit_eligible],
+    ['Forma de terreno', translateTokkoValue(item.details?.disposition)],
+    ['Topografía', translateTokkoValue(item.details?.orientation)],
+    ['Crédito elegible', translateTokkoValue(item.details?.credit_eligible)],
   ].filter(([, value]) => value !== null && value !== undefined && value !== '');
 
   const surfaces = [
@@ -367,7 +685,7 @@ export default function PropertyDetailPage() {
 
             {generalInfo.length > 0 && (
               <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm">
-                <h2 className="font-heading text-xl font-bold text-slate-950">Informacion general</h2>
+                <h2 className="font-heading text-xl font-bold text-slate-950">Información general</h2>
                 <div className="mt-4 grid gap-3 rounded-2xl bg-gray-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
                   {generalInfo.map(([label, value]) => (
                     <div key={label} className="rounded-xl bg-white px-4 py-3 shadow-sm">
@@ -385,14 +703,14 @@ export default function PropertyDetailPage() {
         {item.tags?.length > 0 && (
           <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
             <h2 className="font-heading text-xl font-bold text-slate-950">
-              {isDevelopment ? 'Adicionales' : 'Amenidades y caracteristicas'}
+              {isDevelopment ? 'Características' : 'Amenidades y características'}
             </h2>
             {isDevelopment ? (
               <ul className="mt-4 grid gap-2 sm:grid-cols-2">
                 {item.tags.map((tag) => (
                   <li key={tag} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-slate-800">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white text-xs font-bold">✓</span>
-                    {tag}
+                    {translateTokkoValue(tag)}
                   </li>
                 ))}
               </ul>
@@ -400,7 +718,7 @@ export default function PropertyDetailPage() {
               <div className="mt-4 flex flex-wrap gap-2">
                 {item.tags.map((tag) => (
                   <span key={tag} className="rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700">
-                    {tag}
+                    {translateTokkoValue(tag)}
                   </span>
                 ))}
               </div>
@@ -416,7 +734,7 @@ export default function PropertyDetailPage() {
               {badgeLabel}
             </span>
             <h1 className="mt-5 font-heading text-3xl font-black text-slate-950 md:text-4xl">{item.title}</h1>
-            <p className="mt-3 text-base text-gray-500">{item.address || item.city || 'Ubicacion no disponible'}</p>
+            <p className="mt-3 text-base text-gray-500">{item.address || item.city || 'Ubicación no disponible'}</p>
 
             {item.location_full && item.location_full !== item.address && (
               <p className="mt-2 text-sm text-gray-500">{item.location_full}</p>
@@ -425,8 +743,8 @@ export default function PropertyDetailPage() {
             <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-600">
               <span className="rounded-full bg-gray-100 px-4 py-2">Ciudad: {item.city || 'No disponible'}</span>
               <span className="rounded-full bg-gray-100 px-4 py-2">Terreno: {Number(item.area || 0).toLocaleString('es-MX')} m²</span>
-              <span className="rounded-full bg-gray-100 px-4 py-2">Recamaras: {item.bedrooms || 0}</span>
-              <span className="rounded-full bg-gray-100 px-4 py-2">Banos: {item.bathrooms || 0}</span>
+              <span className="rounded-full bg-gray-100 px-4 py-2">Recámaras: {item.bedrooms || 0}</span>
+              <span className="rounded-full bg-gray-100 px-4 py-2">Baños: {item.bathrooms || 0}</span>
             </div>
 
             <div className="mt-8 rounded-2xl bg-slate-950 px-6 py-5 text-white">
@@ -452,16 +770,16 @@ export default function PropertyDetailPage() {
                 to={`/contact?property_id=${item.id}&property_title=${encodeURIComponent(item.title || 'esta propiedad')}`}
                 className="inline-flex rounded-xl bg-brand-500 px-6 py-3 font-semibold text-white transition hover:bg-brand-700"
               >
-                Solicitar informacion
+                Solicitar información
               </Link>
             </div>
 
           </div>
 
           <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
-            <h2 className="font-heading text-xl font-bold text-slate-950">Descripcion</h2>
+            <h2 className="font-heading text-xl font-bold text-slate-950">Descripción</h2>
             <p className="mt-3 whitespace-pre-line text-base leading-7 text-gray-700">
-              {showFullDescription ? (item.description || 'Sin descripcion disponible por el momento.') : (shortDescription || 'Sin descripcion disponible por el momento.')}
+              {showFullDescription ? (item.description || 'Sin descripción disponible por el momento.') : (shortDescription || 'Sin descripción disponible por el momento.')}
             </p>
             {(item.description || '').length > 600 && (
               <button
@@ -469,7 +787,7 @@ export default function PropertyDetailPage() {
                 onClick={() => setShowFullDescription((v) => !v)}
                 className="mt-3 text-sm font-semibold text-brand-700 transition hover:text-brand-500"
               >
-                {showFullDescription ? 'Mostrar menos' : 'Mostrar mas'}
+                {showFullDescription ? 'Mostrar menos' : 'Mostrar más'}
               </button>
             )}
             {/* Botón visible en móvil (oculto en pantallas grandes donde ya aparece en el panel derecho) */}
@@ -484,7 +802,7 @@ export default function PropertyDetailPage() {
           {(hasCoords || item.address || item.location_full || item.city) && (
             <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
               <div className="mb-4 flex items-center justify-between gap-3">
-                <h3 className="font-heading text-xl font-bold text-slate-950">Ubicacion</h3>
+                <h3 className="font-heading text-xl font-bold text-slate-950">Ubicación</h3>
                 <a
                   href={mapLink || `https://www.google.com/maps/search/${encodeURIComponent(item.address || item.location_full || item.city || '')}`}
                   target="_blank"
@@ -505,7 +823,7 @@ export default function PropertyDetailPage() {
                 </div>
               )}
               <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
-                Nota importante: las medidas e informacion se consideran referenciales y deben validarse con documentacion vigente.
+                Nota importante: las medidas e información se consideran referenciales y deben validarse con documentación vigente.
               </p>
             </section>
           )}
@@ -554,7 +872,7 @@ export default function PropertyDetailPage() {
                   <div className="flex items-center gap-3 rounded-2xl bg-white px-5 py-4 shadow-sm">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Estado</p>
-                      <p className="font-bold text-slate-900">{item.details.construction_status}</p>
+                      <p className="font-bold text-slate-900">{translateTokkoValue(item.details.construction_status)}</p>
                     </div>
                   </div>
                 )}

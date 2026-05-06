@@ -232,6 +232,10 @@ function tokko_send_contact(
 
 function tokko_sync(): array
 {
+    // Translations make HTTP calls — give PHP unlimited time on shared hosting.
+    @set_time_limit(0);
+    @ini_set('max_execution_time', '0');
+
     $cfg = app_config()['tokko'];
     if (!$cfg['api_key'] || empty($cfg['url'])) {
         return ['synced' => 0, 'skipped' => true];
@@ -278,6 +282,8 @@ function tokko_sync(): array
     $stmt = $pdo->prepare($sql);
     $synced = 0;
     $errors = [];
+    $seenPropertyIds = [];
+    $devEndpointFetched = false;
 
     // ── STEP 1: Fetch all property items ─────────────────────────────────────
     // Property endpoint returns standalone properties AND units belonging to a
@@ -317,10 +323,17 @@ function tokko_sync(): array
 
             // Also store the unit as its own row so it can be listed under the development
             $uPhotos = tokko_extract_photos($item);
+            $uDescription = tokko_extract_description($item, $item);
+            if (!empty($uDescription) && tokko_is_english($uDescription)) {
+                $uDescTranslated = tokko_translate_to_spanish($uDescription);
+                if (!empty($uDescTranslated)) {
+                    $uDescription = $uDescTranslated;
+                }
+            }
             $unitRows[] = [
                 ':tokko_id'        => 'property:' . $rawId,
                 ':title'           => $item['publication_title'] ?? $item['title'] ?? $item['name'] ?? 'Unidad',
-                ':description'     => tokko_extract_description($item, $item),
+                ':description'     => $uDescription,
                 ':price'           => tokko_extract_price($item),
                 ':address'         => $item['real_address'] ?? $item['address'] ?? '',
                 ':city'            => $item['location']['name'] ?? $item['address_short'] ?? '',
@@ -388,6 +401,7 @@ function tokko_sync(): array
             ':location_full'   => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
             ':parent_tokko_id' => null,
         ]);
+        $seenPropertyIds[] = 'property:' . $rawId;
         $synced++;
     }
 
@@ -398,6 +412,7 @@ function tokko_sync(): array
     if ($devUrl) {
         $devItems = tokko_fetch_items($devUrl, $cfg['api_key']);
         if ($devItems !== null) {
+            $devEndpointFetched = true;
             foreach ($devItems as $item) {
                 $devId = (string)($item['id'] ?? '');
                 if ($devId === '') {
@@ -420,85 +435,109 @@ function tokko_sync(): array
         }
     }
 
-    // ── STEP 3: Insert developments atomically ────────────────────────────────
-    if (!empty($devMap)) {
-        $rows = [];
-        foreach ($devMap as $devId => $devData) {
-            $item      = $devData['item'];
-            $source    = $devData['source'];
-            $tags      = $devData['tags'];
-            $unitCount = $devData['unit_count'];
+    // ── STEP 3: Upsert developments (preserves existing DB ids) ─────────────
+    // Using ON DUPLICATE KEY UPDATE (keyed on tokko_id) so the auto-increment
+    // id never changes — prevents 404s caused by stale links in the browser.
+    $seenDevTokkoIds  = [];
+    $seenUnitTokkoIds = [];
 
-            $photos = tokko_extract_photos($source);
-            if (empty($photos)) {
-                $photos = tokko_extract_photos($item);
-            }
-            $videos      = array_values(is_array($source['videos'] ?? null) ? $source['videos'] : []);
-            $files       = array_values(is_array($source['files'] ?? null) ? $source['files'] : []);
-            $description = tokko_extract_description($item, $source);
-            $publicUrl   = $item['public_url'] ?? $source['public_url'] ?? $source['web_url'] ?? null;
-            if (strlen($description) < 200 && is_string($publicUrl) && $publicUrl !== '') {
-                $fromPage = tokko_fetch_public_description($publicUrl);
-                if (strlen($fromPage) > strlen($description)) {
-                    $description = $fromPage;
-                }
-            }
-            if (!empty($description) && tokko_is_english($description)) {
-                $translated = tokko_translate_to_spanish($description);
-                if (!empty($translated)) {
-                    $description = $translated;
-                }
-            }
+    foreach ($devMap as $devId => $devData) {
+        $item      = $devData['item'];
+        $source    = $devData['source'];
+        $tags      = $devData['tags'];
+        $unitCount = $devData['unit_count'];
 
-            $details = tokko_extract_details($item, $source, true);
-            // Inject synced unit count (more reliable than Tokko's own field)
-            if ($unitCount > 0 && empty($details['unit_amount'])) {
-                $details['unit_amount'] = $unitCount;
+        $photos = tokko_extract_photos($source);
+        if (empty($photos)) {
+            $photos = tokko_extract_photos($item);
+        }
+        $videos      = array_values(is_array($source['videos'] ?? null) ? $source['videos'] : []);
+        $files       = array_values(is_array($source['files'] ?? null) ? $source['files'] : []);
+        $description = tokko_extract_description($item, $source);
+        $publicUrl   = $item['public_url'] ?? $source['public_url'] ?? $source['web_url'] ?? null;
+        if (strlen($description) < 200 && is_string($publicUrl) && $publicUrl !== '') {
+            $fromPage = tokko_fetch_public_description($publicUrl);
+            if (strlen($fromPage) > strlen($description)) {
+                $description = $fromPage;
             }
-            if ($unitCount > 0) {
-                $details['unit_count_synced'] = $unitCount;
+        }
+        if (!empty($description) && tokko_is_english($description)) {
+            $translated = tokko_translate_to_spanish($description);
+            if (!empty($translated)) {
+                $description = $translated;
             }
-
-            $rows[] = [
-                ':tokko_id'       => 'development:' . $devId,
-                ':title'          => $source['publication_title'] ?? $source['title'] ?? $source['name'] ?? $item['publication_title'] ?? 'Desarrollo',
-                ':description'    => $description,
-                ':price'          => tokko_extract_price($item),
-                ':address'        => $source['real_address'] ?? $source['address'] ?? $item['real_address'] ?? $item['address'] ?? '',
-                ':city'           => $source['location']['name'] ?? $item['location']['name'] ?? '',
-                ':bedrooms'       => (int)($source['room_amount'] ?? $item['room_amount'] ?? 0),
-                ':bathrooms'      => (int)($source['bathroom_amount'] ?? $item['bathroom_amount'] ?? 0),
-                ':area'           => (float)($source['surface'] ?? $source['roofed_surface'] ?? $source['total_surface'] ?? $item['surface'] ?? 0),
-                ':image_url'      => $photos[0]['image'] ?? $source['photo'] ?? $item['photo'] ?? '',
-                ':photos_json'    => json_encode($photos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':tags_json'      => json_encode($tags, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':videos_json'    => json_encode($videos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':files_json'     => json_encode($files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':details_json'   => json_encode($details, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':operation_type' => tokko_extract_operation_type($item),
-                ':listing_kind'   => 'development',
-                ':property_type'  => tokko_translate_property_type($source['type']['name'] ?? $item['type']['name'] ?? ''),
-                ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
-                ':location_full'   => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
-                ':parent_tokko_id' => null,
-            ];
         }
 
-        $pdo->beginTransaction();
-        try {
+        $details = tokko_extract_details($item, $source, true);
+        if ($unitCount > 0 && empty($details['unit_amount'])) {
+            $details['unit_amount'] = $unitCount;
+        }
+        if ($unitCount > 0) {
+            $details['unit_count_synced'] = $unitCount;
+        }
+
+        $devTokkoId = 'development:' . $devId;
+        $stmt->execute([
+            ':tokko_id'       => $devTokkoId,
+            ':title'          => $source['publication_title'] ?? $source['title'] ?? $source['name'] ?? $item['publication_title'] ?? 'Desarrollo',
+            ':description'    => $description,
+            ':price'          => tokko_extract_price($item),
+            ':address'        => $source['real_address'] ?? $source['address'] ?? $item['real_address'] ?? $item['address'] ?? '',
+            ':city'           => $source['location']['name'] ?? $item['location']['name'] ?? '',
+            ':bedrooms'       => (int)($source['room_amount'] ?? $item['room_amount'] ?? 0),
+            ':bathrooms'      => (int)($source['bathroom_amount'] ?? $item['bathroom_amount'] ?? 0),
+            ':area'           => (float)($source['surface'] ?? $source['roofed_surface'] ?? $source['total_surface'] ?? $item['surface'] ?? 0),
+            ':image_url'      => $photos[0]['image'] ?? $source['photo'] ?? $item['photo'] ?? '',
+            ':photos_json'    => json_encode($photos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':tags_json'      => json_encode($tags, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':videos_json'    => json_encode($videos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':files_json'     => json_encode($files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':details_json'   => json_encode($details, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ':operation_type' => tokko_extract_operation_type($item),
+            ':listing_kind'   => 'development',
+            ':property_type'  => tokko_translate_property_type($source['type']['name'] ?? $item['type']['name'] ?? ''),
+            ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
+            ':location_full'  => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
+            ':parent_tokko_id' => null,
+        ]);
+        $seenDevTokkoIds[] = $devTokkoId;
+        $synced++;
+    }
+
+    // Upsert units
+    foreach ($unitRows as $row) {
+        $stmt->execute($row);
+        $seenUnitTokkoIds[] = $row[':tokko_id'];
+    }
+
+    // Remove developments/units deleted from Tokko (preserving DB ids for survivors)
+    if ($devEndpointFetched || !empty($devMap)) {
+        if (!empty($seenDevTokkoIds)) {
+            $ph = implode(',', array_fill(0, count($seenDevTokkoIds), '?'));
+            $pdo->prepare("DELETE FROM properties WHERE listing_kind = 'development' AND tokko_id NOT IN ($ph)")
+                ->execute($seenDevTokkoIds);
+        } else {
             $pdo->exec("DELETE FROM properties WHERE listing_kind = 'development'");
+        }
+        if (!empty($seenUnitTokkoIds)) {
+            $ph = implode(',', array_fill(0, count($seenUnitTokkoIds), '?'));
+            $pdo->prepare("DELETE FROM properties WHERE listing_kind = 'unit' AND tokko_id NOT IN ($ph)")
+                ->execute($seenUnitTokkoIds);
+        } else {
             $pdo->exec("DELETE FROM properties WHERE listing_kind = 'unit'");
-            foreach ($rows as $row) {
-                $stmt->execute($row);
-                $synced++;
-            }
-            foreach ($unitRows as $row) {
-                $stmt->execute($row);
-            }
-            $pdo->commit();
-        } catch (Throwable $e) {
-            $pdo->rollBack();
-            $errors[] = 'Development insert failed: ' . $e->getMessage();
+        }
+    }
+
+    // ── STEP 4: Remove standalone properties deleted from Tokko ──────────────
+    if ($propItems !== null) {
+        if (!empty($seenPropertyIds)) {
+            $placeholders = implode(',', array_fill(0, count($seenPropertyIds), '?'));
+            $pdo->prepare(
+                "DELETE FROM properties WHERE listing_kind = 'property' AND tokko_id NOT IN ($placeholders)"
+            )->execute($seenPropertyIds);
+        } else {
+            // All standalone properties were removed from Tokko
+            $pdo->exec("DELETE FROM properties WHERE listing_kind = 'property'");
         }
     }
 
@@ -582,7 +621,7 @@ function tokko_extract_price(array $item): float
  * since the last successful sync. Uses a simple timestamp file as a gate.
  * Fails silently so it never breaks the properties endpoint.
  */
-function tokko_auto_sync(int $intervalSeconds = 3600): void
+function tokko_auto_sync(int $intervalSeconds = 900): void
 {
     $cfg = app_config()['tokko'];
     if (empty($cfg['api_key'])) {
@@ -630,48 +669,175 @@ function tokko_html_to_text(string $html): string
 
 function tokko_is_english(string $text): bool
 {
+    if (trim($text) === '') {
+        return false;
+    }
+
     $lower = strtolower($text);
-    $words = ['the ', ' is ', ' are ', ' in ', ' at ', ' for ', ' with ', ' this ', ' that ',
-              'bedroom', 'bathroom', 'located', 'property', 'floor', 'living', 'kitchen',
-              'square', 'feet', 'parking', 'garage', 'balcony', 'building', 'amenities'];
-    $matches = 0;
-    foreach ($words as $word) {
-        if (strpos($lower, $word) !== false) {
-            $matches++;
+
+    // Strong single-word signals → definitely English with just one match
+    $strongSignals = [
+        'the ', 'this ', 'that ', 'these ', 'those ', 'there is', 'there are',
+        ' is a ', ' is an ', ' are a ', ' are the ',
+        ' was ', ' were ', ' will be ', ' have been ',
+        ' with ', ' from ', ' located ', ' featuring ', ' includes ',
+        'bedroom', 'bathroom', 'kitchen', 'living room', 'square feet',
+        'sqft', 'sq ft', 'amenities', 'building has', 'floor plan',
+        'this property', 'this development', 'this unit',
+    ];
+    foreach ($strongSignals as $signal) {
+        if (strpos($lower, $signal) !== false) {
+            return true;
         }
     }
-    return $matches >= 3;
+
+    // Weak signals: 2 matches → English
+    $weakSignals = [
+        ' in ', ' at ', ' for ', ' and ', ' or ', ' not ',
+        ' its ', ' our ', ' your ', ' their ', ' which ', ' when ',
+        'floor', 'garage', 'parking', 'balcony', 'view', 'space',
+        'office', 'commercial', 'land', 'lot', 'unit', 'area',
+        'property', 'building', 'level', 'access',
+    ];
+    $count = 0;
+    foreach ($weakSignals as $signal) {
+        if (strpos($lower, $signal) !== false) {
+            $count++;
+            if ($count >= 2) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 function tokko_translate_to_spanish(string $text): string
 {
-    if (empty($text)) {
+    if (empty(trim($text))) {
         return $text;
     }
 
-    // MyMemory free API: 1000 words/day per IP. Translate up to 1500 chars.
-    $chunk = mb_substr($text, 0, 1500);
-    $tail  = mb_strlen($text) > 1500 ? ' ' . mb_substr($text, 1500) : '';
+    // ── Cache ─────────────────────────────────────────────────────────────────
+    $cacheFile = __DIR__ . '/../data/desc_translation_cache.json';
+    static $descCache = null;
+    if ($descCache === null) {
+        $descCache = [];
+        if (file_exists($cacheFile) && is_readable($cacheFile)) {
+            $descCache = json_decode(file_get_contents($cacheFile), true) ?: [];
+        }
+    }
+    $cacheKey = md5(trim($text));
+    if (isset($descCache[$cacheKey])) {
+        return $descCache[$cacheKey];
+    }
 
-    $url = 'https://api.mymemory.translated.net/get?q=' . urlencode($chunk) . '&langpair=en%7Ces';
-    $ctx = stream_context_create(['http' => [
-        'timeout' => 8,
-        'header'  => "User-Agent: ARE-Inmobiliaria/1.0\r\n",
-    ]]);
+    // ── Split into chunks ≤ 480 chars at sentence boundaries ─────────────────
+    $maxChunk = 480;
+    $chunks   = [];
+    $remaining = trim($text);
+    while (mb_strlen($remaining) > 0) {
+        if (mb_strlen($remaining) <= $maxChunk) {
+            $chunks[] = $remaining;
+            break;
+        }
+        $slice     = mb_substr($remaining, 0, $maxChunk);
+        $lastBreak = false;
+        foreach (['. ', ".\n", '! ', '? ', "\n\n"] as $sep) {
+            $pos = mb_strrpos($slice, $sep);
+            if ($pos !== false && $pos > 80 && ($lastBreak === false || $pos > $lastBreak)) {
+                $lastBreak = $pos + mb_strlen($sep);
+            }
+        }
+        $cutAt     = ($lastBreak !== false) ? $lastBreak : $maxChunk;
+        $chunks[]  = mb_substr($remaining, 0, $cutAt);
+        $remaining = ltrim(mb_substr($remaining, $cutAt));
+    }
 
-    $response = @file_get_contents($url, false, $ctx);
-    if (!$response) {
+    $translatedParts = [];
+    $anyTranslated   = false;
+
+    $lingvaInstances = [
+        'https://lingva.ml',
+        'https://translate.plausibility.cloud',
+    ];
+
+    foreach ($chunks as $chunk) {
+        $chunk = trim($chunk);
+        if ($chunk === '') {
+            continue;
+        }
+
+        $chunkTranslated = null;
+
+        // ── 1. Lingva (Google-backed, no daily limit) ─────────────────────────
+        foreach ($lingvaInstances as $base) {
+            $url = $base . '/api/v1/en/es/' . rawurlencode($chunk);
+            $raw = tokko_http_get($url, 10);
+            if ($raw) {
+                $data      = json_decode($raw, true);
+                $candidate = $data['translation'] ?? null;
+                if (
+                    is_string($candidate)
+                    && $candidate !== ''
+                    && stripos($candidate, 'error') === false
+                    && strtolower(trim($candidate)) !== strtolower(trim($chunk))
+                ) {
+                    $chunkTranslated = $candidate;
+                    break;
+                }
+            }
+        }
+
+        // ── 2. MyMemory fallback ──────────────────────────────────────────────
+        if ($chunkTranslated === null) {
+            $url = 'https://api.mymemory.translated.net/get?' . http_build_query([
+                'q'        => $chunk,
+                'langpair' => 'en|es',
+                'de'       => 'sync@are-inmobiliaria.com',
+            ]);
+            $raw = tokko_http_get($url, 10);
+            if ($raw) {
+                $data      = json_decode($raw, true);
+                $candidate = $data['responseData']['translatedText'] ?? '';
+                if (
+                    !empty($candidate)
+                    && stripos($candidate, 'MYMEMORY WARNING') === false
+                    && stripos($candidate, 'QUERY LENGTH LIMIT') === false
+                    && strtolower(trim($candidate)) !== strtolower(trim($chunk))
+                ) {
+                    $chunkTranslated = $candidate;
+                }
+            }
+        }
+
+        if ($chunkTranslated !== null) {
+            $translatedParts[] = $chunkTranslated;
+            $anyTranslated     = true;
+        } else {
+            $translatedParts[] = $chunk; // keep original on failure
+        }
+    }
+
+    $final = trim(implode(' ', $translatedParts));
+    if ($final === '') {
         return $text;
     }
 
-    $data = json_decode($response, true);
-    $translated = $data['responseData']['translatedText'] ?? '';
-
-    if (empty($translated) || $translated === $chunk) {
-        return $text;
+    // ── Save to cache if at least one chunk was translated ────────────────────
+    if ($anyTranslated) {
+        $dir = dirname($cacheFile);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $descCache[$cacheKey] = $final;
+        @file_put_contents(
+            $cacheFile,
+            json_encode($descCache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+        );
     }
 
-    return $translated . $tail;
+    return $final;
 }
 
 function tokko_extract_description(array $item, array $source): string
@@ -804,40 +970,68 @@ function tokko_translate_property_type(string $type): string
 {
     static $map = [
         // Inglés → nombre exacto del CRM de Tokko en español
-        'house'              => 'Casa',
-        'apartment'          => 'Departamento',
-        'ph'                 => 'Departamento',
-        'office'             => 'Oficina',
-        'land'               => 'Terreno',
-        'lot'                => 'Terreno',
-        'local'              => 'Local',
-        'store'              => 'Local',
-        'commercial'         => 'Local',
-        'business premises'  => 'Local',
-        'bussiness premises' => 'Local',   // typo en Tokko API
+        'house'               => 'Casa',
+        'single family home'  => 'Casa Unifamiliar',
+        'single family'       => 'Casa Unifamiliar',
+        'apartment'           => 'Departamento',
+        'ph'                  => 'Penthouse',
+        'penthouse'           => 'Penthouse',
+        'office'              => 'Oficina',
+        'office building'     => 'Edificio de Oficinas',
+        'land'                => 'Terreno',
+        'lot'                 => 'Terreno',
+        'local'               => 'Local Comercial',
+        'store'               => 'Local Comercial',
+        'commercial'          => 'Local Comercial',
+        'commercial space'    => 'Local Comercial',
+        'retail space'        => 'Local Comercial',
+        'business premises'   => 'Local Comercial',
+        'bussiness premises'  => 'Local Comercial',
         'commercial building' => 'Edificio Comercial',
-        'building'           => 'Edificio Comercial',
-        'storage'            => 'Bodega Industrial',
-        'warehouse'          => 'Bodega Industrial',
-        'bodega'             => 'Bodega Industrial',
-        'industrial'         => 'Nave Industrial',
-        'ranch'              => 'Rancho',
-        'farm'               => 'Rancho',
-        'country house'      => 'Casa en condominio',
-        'room'               => 'Departamento',
-        'studio'             => 'Departamento',
-        'development'        => 'Desarrollo',
-        'parking'            => 'Estacionamiento',
-        'hotel'              => 'Hotel',
-        'chalet'             => 'Casa',
-        'duplex'             => 'Casa',
-        'villa'              => 'Casa',
-        'townhouse'          => 'Casa',
-        'field'              => 'Campo',
-        'land field'         => 'Campo',
+        'residential building'=> 'Edificio Residencial',
+        'building'            => 'Edificio',
+        'storage'             => 'Bodega Industrial',
+        'warehouse'           => 'Bodega Industrial',
+        'bodega'              => 'Bodega Industrial',
+        'industrial'          => 'Nave Industrial',
+        'industrial condo'    => 'Condominio Industrial',
+        'industrial condominium' => 'Condominio Industrial',
+        'industrial land'     => 'Terreno Industrial',
+        'residential land'    => 'Terreno Residencial',
+        'commercial land'     => 'Terreno Comercial',
+        'ranch'               => 'Rancho',
+        'farm'                => 'Rancho',
+        'hacienda'            => 'Hacienda',
+        'country house'       => 'Casa en condominio',
+        'country club'        => 'Club de Campo',
+        'room'                => 'Departamento',
+        'studio'              => 'Estudio',
+        'loft'                => 'Loft',
+        'development'         => 'Desarrollo',
+        'parking'             => 'Estacionamiento',
+        'hotel'               => 'Hotel',
+        'chalet'              => 'Casa',
+        'duplex'              => 'Dúplex',
+        'villa'               => 'Villa',
+        'townhouse'           => 'Casa en Condominio',
+        'condominium'         => 'Condominio',
+        'field'               => 'Campo',
+        'land field'          => 'Campo',
+        'mixed use'           => 'Uso Mixto',
+        'fractional'          => 'Fraccional',
+        'cabin'               => 'Cabaña',
+        'beach house'         => 'Casa de Playa',
+        'residential complex' => 'Complejo Residencial',
+        'housing complex'     => 'Complejo Habitacional',
+        'industrial park'     => 'Parque Industrial',
+        'business park'       => 'Parque Empresarial',
+        'shopping center'     => 'Centro Comercial',
+        'mall'                => 'Centro Comercial',
+        'parking lot'         => 'Estacionamiento',
+        'suite'               => 'Suite',
     ];
     $key = strtolower(trim($type));
-    return $map[$key] ?? $type;
+    return $map[$key] ?? tokko_auto_translate($type);
 }
 
 function tokko_extract_operation_type(array $item): string
@@ -905,12 +1099,482 @@ function tokko_extract_tags(array $item): array
         return [];
     }
 
-    return array_values(array_filter(array_map(static function ($tag) {
+    $raw = array_values(array_filter(array_map(static function ($tag) {
         if (is_array($tag)) {
             return $tag['name'] ?? null;
         }
         return is_string($tag) ? $tag : null;
     }, $tags)));
+
+    return array_values(array_map('tokko_translate_tag', $raw));
+}
+
+function tokko_translate_tag(string $tag): string
+{
+    static $map = [
+        // infrastructure
+        'sewage'                  => 'Drenaje',
+        'sewage system'           => 'Drenaje',
+        'sewerage'                => 'Alcantarillado',
+        'electricity'             => 'Electricidad',
+        'underground electricity' => 'Electricidad subterránea',
+        'phone'                   => 'Línea telefónica',
+        'telephone'               => 'Línea telefónica',
+        'internet'                => 'Internet',
+        'pavement'                => 'Pavimentación',
+        'paved road'              => 'Calle pavimentada',
+        'public lighting'         => 'Alumbrado público',
+        'street lighting'         => 'Alumbrado público',
+        'rainwater drainage'      => 'Drenaje pluvial',
+        'storm drain'             => 'Drenaje pluvial',
+        'biodigesters'            => 'Biodigestores',
+        'biodigester'             => 'Biodigestor',
+        'water'                   => 'Agua',
+        'potable water'           => 'Agua potable',
+        'water tank'              => 'Cisterna',
+        'cistern'                 => 'Cisterna',
+        'drainage'                => 'Drenaje',
+        'gas'                     => 'Gas',
+        'natural gas'             => 'Gas natural',
+        'sidewalk'                => 'Banqueta',
+        // amenities
+        'gym'                     => 'Gimnasio',
+        'swimming pool'           => 'Alberca',
+        'pool'                    => 'Alberca',
+        'parking'                 => 'Estacionamiento',
+        'elevator'                => 'Elevador',
+        'security'                => 'Seguridad',
+        'security cameras'        => 'Cámaras de seguridad',
+        'rooftop'                 => 'Roof Garden',
+        'roof garden'             => 'Roof Garden',
+        'lobby'                   => 'Lobby',
+        'garden'                  => 'Jardín',
+        'terrace'                 => 'Terraza',
+        'balcony'                 => 'Balcón',
+        'laundry'                 => 'Lavandería',
+        'laundry room'            => 'Cuarto de lavado',
+        'storage'                 => 'Bodega',
+        'storage room'            => 'Cuarto de bodega',
+        'concierge'               => 'Concierge',
+        'playground'              => 'Área de juegos',
+        'pet friendly'            => 'Pet Friendly',
+        'co-working'              => 'Co-working',
+        'coworking'               => 'Co-working',
+        'bbq'                     => 'Asador',
+        'grill'                   => 'Asador',
+        'jacuzzi'                 => 'Jacuzzi',
+        'sauna'                   => 'Sauna',
+        'spa'                     => 'Spa',
+        'cinema'                  => 'Cine',
+        'movie room'              => 'Sala de cine',
+        'business center'         => 'Centro de negocios',
+        'event room'              => 'Salón de eventos',
+        'event hall'              => 'Salón de eventos',
+        'sports court'            => 'Cancha deportiva',
+        'tennis court'            => 'Cancha de tenis',
+        'basketball court'        => 'Cancha de basketball',
+        'air conditioning'        => 'Aire acondicionado',
+        'heating'                 => 'Calefacción',
+        'solar panels'            => 'Paneles solares',
+        'generator'               => 'Planta de luz',
+        'clubhouse'               => 'Club House',
+        'club house'              => 'Club House',
+        'reception'               => 'Recepción',
+        'conference room'         => 'Sala de conferencias',
+        'conference'              => 'Sala de conferencias',
+        'doorman'                 => 'Portero',
+        'guard'                   => 'Vigilancia',
+        'gated community'         => 'Privada',
+        'green areas'             => 'Áreas verdes',
+        'green area'              => 'Área verde',
+        'common areas'            => 'Áreas comunes',
+        'common area'             => 'Área común',
+        'fire extinguisher'       => 'Extinguidor',
+        'sprinklers'              => 'Rociadores contra incendio',
+        'freight elevator'        => 'Elevador de carga',
+        'service elevator'        => 'Elevador de servicio',
+        'visitors parking'        => 'Estacionamiento para visitas',
+        'visitor parking'         => 'Estacionamiento para visitas',
+        'covered parking'         => 'Estacionamiento techado',
+        'underground parking'     => 'Estacionamiento subterráneo',
+        'fiber optic'             => 'Fibra óptica',
+        'high speed internet'     => 'Internet de alta velocidad',
+        'intercom'                => 'Intercomunicador',
+        'alarm system'            => 'Sistema de alarma',
+        'smart home'              => 'Casa inteligente',
+        'domotics'                => 'Domótica',
+        'air purifier'            => 'Purificador de aire',
+        'view'                    => 'Vista panorámica',
+        'mountain view'           => 'Vista a la montaña',
+        'city view'               => 'Vista a la ciudad',
+        'accessible'              => 'Accesible',
+        'wheelchair accessible'   => 'Acceso para silla de ruedas',
+        'furnished'               => 'Amueblado',
+        'semi furnished'          => 'Semi-amueblado',
+        'unfurnished'             => 'Sin muebles',
+        'kitchen'                 => 'Cocina',
+        'equipped kitchen'        => 'Cocina equipada',
+        'walk in closet'          => 'Walk-in Closet',
+        'closet'                  => 'Clóset',
+        'dining room'             => 'Comedor',
+        'living room'             => 'Sala',
+        'study'                   => 'Estudio',
+        'service room'            => 'Cuarto de servicio',
+        'maid room'               => 'Cuarto de servicio',
+        // propiedades generales
+        'hall'                    => 'Vestíbulo',
+        'lobby hall'              => 'Vestíbulo',
+        'fire detector'           => 'Detector de incendios',
+        'fire alarm'              => 'Alarma contra incendios',
+        'smoke detector'          => 'Detector de humo',
+        'modern style'            => 'Estilo moderno',
+        'colonial style'          => 'Estilo colonial',
+        'contemporary style'      => 'Estilo contemporáneo',
+        'one level'               => 'Un nivel',
+        'single level'            => 'Un nivel',
+        'cctv'                    => 'Cámaras CCTV',
+        'electricity to be connected' => 'Toma de electricidad',
+        'water to be connected'   => 'Toma de agua',
+        'gas to be connected'     => 'Toma de gas',
+        'aluminium windows'       => 'Ventanas de aluminio',
+        'aluminum windows'        => 'Ventanas de aluminio',
+        'glass windows'           => 'Ventanas de vidrio',
+        '24 hour security'        => 'Seguridad 24 horas',
+        '24/7 security'           => 'Seguridad 24/7',
+        'fixed garage'            => 'Cochera fija',
+        'lift'                    => 'Elevador',
+        'main boulevard'          => 'Sobre boulevard principal',
+        'administrative office building' => 'Edificio de oficinas administrativas',
+        'drinking water'          => 'Agua potable',
+        'night security'          => 'Vigilancia nocturna',
+        'internal land'           => 'Terreno interior',
+        'private security company' => 'Empresa de seguridad privada',
+        'good rental potential'   => 'Buen potencial de renta',
+        'quiet location'          => 'Zona tranquila',
+        'security grills'         => 'Rejas de seguridad',
+        'security grill'          => 'Reja de seguridad',
+        'concrete floors'         => 'Pisos de concreto',
+        'concrete floor'          => 'Piso de concreto',
+        'trifasic energy'         => 'Energía trifásica',
+        'trifásic energy'         => 'Energía trifásica',
+        'three phase energy'      => 'Energía trifásica',
+        'access control'          => 'Control de acceso',
+        'maintenance service'     => 'Servicio de mantenimiento',
+        'issue invoice'           => 'Factura disponible',
+        'store'                   => 'Bodega',
+        'entrance security'       => 'Seguridad en acceso',
+        'immediate deed'          => 'Escrituración inmediata',
+        'direct sale'             => 'Venta directa',
+        'condominium'             => 'Condominio',
+        'condomini'               => 'Condominio',
+        'solar heater'            => 'Calentador solar',
+        'cistern'                 => 'Cisterna',
+        'water cistern'           => 'Cisterna de agua',
+        'electric plant'          => 'Planta de luz',
+        'backup power'            => 'Energía de respaldo',
+        'natural ventilation'     => 'Ventilación natural',
+        'cross ventilation'       => 'Ventilación cruzada',
+        'wood floors'             => 'Pisos de madera',
+        'marble floors'           => 'Pisos de mármol',
+        'porcelain floors'        => 'Pisos de porcelanato',
+        'laminated floors'        => 'Pisos laminados',
+        'ceramic floors'          => 'Pisos de cerámica',
+        'granite countertops'     => 'Encimeras de granito',
+        'marble countertops'      => 'Encimeras de mármol',
+        'quartz countertops'      => 'Encimeras de cuarzo',
+        'stainless steel'         => 'Acero inoxidable',
+        'double height'           => 'Doble altura',
+        'high ceilings'           => 'Techos altos',
+        'skylight'                => 'Claraboya',
+        'panoramic view'          => 'Vista panorámica',
+        'sea view'                => 'Vista al mar',
+        'lake view'               => 'Vista al lago',
+        'pool view'               => 'Vista a la alberca',
+        'garden view'             => 'Vista al jardín',
+        'bay windows'             => 'Ventanales',
+        'electric blinds'         => 'Persianas eléctricas',
+        'curtains'                => 'Cortinas',
+        'dressing room'           => 'Vestidor',
+        'utility room'            => 'Cuarto de utilería',
+        'wine cellar'             => 'Cava de vinos',
+        'home theater'            => 'Home Theater',
+        'home office'             => 'Home Office',
+        'private pool'            => 'Alberca privada',
+        'shared pool'             => 'Alberca compartida',
+        'heated pool'             => 'Alberca climatizada',
+        'infinity pool'           => 'Alberca infinity',
+        'adults pool'             => 'Alberca para adultos',
+        'kids pool'               => 'Alberca infantil',
+        'mini gym'                => 'Mini gimnasio',
+        'yoga room'               => 'Sala de yoga',
+        'pilates room'            => 'Sala de pilates',
+        'massage room'            => 'Sala de masajes',
+        'bicycle parking'         => 'Estacionamiento de bicicletas',
+        'bike rack'               => 'Rack de bicicletas',
+        'electric car charger'    => 'Cargador para auto eléctrico',
+        'ev charger'              => 'Cargador para auto eléctrico',
+        'shuttle service'         => 'Servicio de transporte',
+        'valet parking'           => 'Valet parking',
+        'storage unit'            => 'Cuarto de bodega',
+        'package room'            => 'Cuarto de paquetes',
+        'mail room'               => 'Cuarto de correspondencia',
+        'trash chute'             => 'Ducto de basura',
+        'recycling'               => 'Reciclaje',
+        'water treatment'         => 'Tratamiento de agua',
+        'rainwater collection'    => 'Captación de agua pluvial',
+        'led lighting'            => 'Iluminación LED',
+        'energy efficient'        => 'Eficiencia energética',
+        'leed certified'          => 'Certificación LEED',
+        'earthquake resistant'    => 'Resistente a sismos',
+        'impact resistant windows'=> 'Ventanas resistentes a impactos',
+        'bulletproof glass'       => 'Vidrio blindado',
+        'panic room'              => 'Cuarto de pánico',
+        'safe'                    => 'Caja fuerte',
+        'vault'                   => 'Caja de seguridad',
+        'loading dock'            => 'Andén de carga',
+        'freight elevator'        => 'Elevador de carga',
+        'crane'                   => 'Grúa',
+        'office space'            => 'Espacio de oficinas',
+        'open office'             => 'Oficina abierta',
+        'private office'          => 'Oficina privada',
+        'meeting room'            => 'Sala de reuniones',
+        'boardroom'               => 'Sala de juntas',
+        'server room'             => 'Cuarto de servidores',
+        'data center'             => 'Centro de datos',
+        'cafeteria'               => 'Cafetería',
+        'restaurant'              => 'Restaurante',
+        'convenience store'       => 'Tienda de conveniencia',
+        'pharmacy'                => 'Farmacia',
+        'atm'                     => 'Cajero automático',
+        'bank'                    => 'Banco',
+        'gym center'              => 'Centro deportivo',
+        'sports center'           => 'Centro deportivo',
+        'fitness center'          => 'Gimnasio',
+        'health club'             => 'Club de salud',
+        'beauty salon'            => 'Salón de belleza',
+        'dry cleaning'            => 'Tintorería',
+    ];
+
+    $key = strtolower(trim($tag));
+    return $map[$key] ?? tokko_auto_translate($tag);
+}
+
+/**
+ * Translates a single English string to Spanish using:
+ *   1. A persistent JSON cache (backare/data/translation_cache.json)
+ *   2. MyMemory free API (no key required, ~1 000 words/day per IP)
+ * Returns the original string if translation fails or the text is already Spanish.
+ */
+/**
+ * Shared low-level HTTP GET via cURL (with file_get_contents fallback).
+ */
+function tokko_http_get(string $url, int $timeout = 10): string|false
+{
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_USERAGENT      => 'ARE-Inmobiliaria/1.0',
+        ]);
+        $result = curl_exec($ch);
+        curl_close($ch);
+        return $result;
+    }
+    $ctx = stream_context_create(['http' => ['timeout' => $timeout, 'header' => "User-Agent: ARE-Inmobiliaria/1.0\r\n"]]);
+    return @file_get_contents($url, false, $ctx);
+}
+
+/**
+ * Translate a short string (tag / property type) using:
+ *   1. Persistent JSON cache
+ *   2. Lingva Translate (Google-backed, no API key, no daily limit)
+ *   3. MyMemory (fallback)
+ * Returns original if all APIs fail.
+ */
+function tokko_auto_translate(string $text): string
+{
+    $text = trim($text);
+    if ($text === '') {
+        return $text;
+    }
+
+    // ── Load cache ──────────────────────────────────────────────────────────
+    $cacheFile = __DIR__ . '/../data/translation_cache.json';
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        if (file_exists($cacheFile) && is_readable($cacheFile)) {
+            $cache = json_decode(file_get_contents($cacheFile), true) ?: [];
+        }
+    }
+
+    $key = strtolower($text);
+    if (isset($cache[$key])) {
+        return $cache[$key];
+    }
+
+    $translated = null;
+
+    // ── 1. Lingva Translate (Google-backed, no daily limit) ──────────────────
+    $lingvaInstances = [
+        'https://lingva.ml',
+        'https://translate.plausibility.cloud',
+    ];
+    foreach ($lingvaInstances as $base) {
+        $url  = $base . '/api/v1/en/es/' . rawurlencode($text);
+        $raw  = tokko_http_get($url, 6);
+        if ($raw) {
+            $data = json_decode($raw, true);
+            $candidate = $data['translation'] ?? null;
+            if (
+                is_string($candidate)
+                && $candidate !== ''
+                && stripos($candidate, 'error') === false
+                && strtolower(trim($candidate)) !== strtolower($text)
+            ) {
+                $translated = mb_strtoupper(mb_substr($candidate, 0, 1)) . mb_substr($candidate, 1);
+                break;
+            }
+        }
+    }
+
+    // ── 2. MyMemory fallback ─────────────────────────────────────────────────
+    if ($translated === null) {
+        $url = 'https://api.mymemory.translated.net/get?' . http_build_query([
+            'q'        => $text,
+            'langpair' => 'en|es',
+            'de'       => 'sync@are-inmobiliaria.com',
+        ]);
+        $raw = tokko_http_get($url, 6);
+        if ($raw) {
+            $data = json_decode($raw, true);
+            $candidate = $data['responseData']['translatedText'] ?? null;
+            if (
+                is_string($candidate)
+                && $candidate !== ''
+                && stripos($candidate, 'MYMEMORY WARNING') === false
+                && strtolower(trim($candidate)) !== strtolower($text)
+            ) {
+                $translated = mb_strtoupper(mb_substr($candidate, 0, 1)) . mb_substr($candidate, 1);
+            }
+        }
+    }
+
+    if ($translated === null) {
+        return $text; // all APIs failed – do NOT cache
+    }
+
+    // ── Persist to cache ─────────────────────────────────────────────────────
+    $cache[$key] = $translated;
+    $dir = dirname($cacheFile);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    @file_put_contents(
+        $cacheFile,
+        json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+    );
+
+    return $translated;
+}
+
+function tokko_translate_detail_value(string $field, mixed $value): mixed
+{
+    if ($value === null || $value === '') {
+        return $value;
+    }
+    $v = strtolower(trim(str_replace('_', ' ', (string)$value)));
+
+    static $conditions = [
+        'good'                    => 'Buenas condiciones',
+        'good condition'          => 'Buenas condiciones',
+        'excellent'               => 'Excelentes condiciones',
+        'excellent condition'     => 'Excelentes condiciones',
+        'regular'                 => 'Condiciones regulares',
+        'regular condition'       => 'Condiciones regulares',
+        'bad'                     => 'Necesita reparación',
+        'bad condition'           => 'Necesita reparación',
+        'needs repair'            => 'Necesita reparación',
+        'need repairs'            => 'Necesita reparación',
+        'new'                     => 'A estrenar',
+        'new building'            => 'Edificio nuevo',
+        'to remodel'              => 'Para remodelar',
+        'under construction'      => 'En construcción',
+        'habitability certificate'=> 'Con cédula de habitabilidad',
+    ];
+    static $situations = [
+        'forsale'   => 'En venta',
+        'for sale'  => 'En venta',
+        'rent'      => 'En renta',
+        'for rent'  => 'En renta',
+        'rented'    => 'Rentado',
+        'sold'      => 'Vendido',
+        'transfer'  => 'Traspaso',
+    ];
+    static $orientations = [
+        'north'     => 'Norte',
+        'south'     => 'Sur',
+        'east'      => 'Oriente',
+        'west'      => 'Poniente',
+        'northeast' => 'Noreste',
+        'northwest' => 'Noroeste',
+        'southeast' => 'Sureste',
+        'southwest' => 'Suroeste',
+        'corner'    => 'Esquina',
+        'front'     => 'Frente',
+        'back'      => 'Trasero',
+        'interior'  => 'Interior',
+        'exterior'  => 'Exterior',
+    ];
+    static $dispositions = [
+        'front'    => 'Frente',
+        'back'     => 'Trasero',
+        'interior' => 'Interior',
+        'internal' => 'Interior',
+        'external' => 'Exterior',
+        'exterior' => 'Exterior',
+        'corner'   => 'Esquina',
+        'lateral'  => 'Lateral',
+    ];
+    static $credits = [
+        'yes'   => 'Sí',
+        'no'    => 'No',
+        'true'  => 'Sí',
+        'false' => 'No',
+        '1'     => 'Sí',
+        '0'     => 'No',
+    ];
+    static $statuses = [
+        'finished'           => 'Terminado',
+        'completed'          => 'Terminado',
+        'under construction' => 'En construcción',
+        'in construction'    => 'En construcción',
+        'construction'       => 'En construcción',
+        'presale'            => 'Pre-venta',
+        'pre-sale'           => 'Pre-venta',
+        'pre sale'           => 'Pre-venta',
+        'proyected'          => 'En planos',
+        'projected'          => 'En planos',
+        'planning'           => 'En planeación',
+        'delivery'           => 'Entrega',
+        'sold out'           => 'Agotado',
+    ];
+
+    $map = match ($field) {
+        'property_condition'   => $conditions,
+        'situation'            => $situations,
+        'orientation'          => $orientations,
+        'disposition'          => $dispositions,
+        'credit_eligible'      => $credits,
+        'construction_status'  => $statuses,
+        default                => [],
+    };
+
+    return $map[$v] ?? $value;
 }
 
 function tokko_extract_details(array $item, array $source, bool $isDevelopment): array
@@ -941,17 +1605,17 @@ function tokko_extract_details(array $item, array $source, bool $isDevelopment):
         'water' => $item['water'] ?? $source['water'] ?? null,
         'sewerage' => $item['sewerage'] ?? $source['sewerage'] ?? null,
         'construction_date' => $source['construction_date'] ?? $item['development']['construction_date'] ?? null,
-        'construction_status' => $source['construction_status'] ?? $item['development']['construction_status'] ?? null,
+        'construction_status' => tokko_translate_detail_value('construction_status', $source['construction_status'] ?? $item['development']['construction_status'] ?? null),
         'delivery_date' => $item['development']['delivery_date'] ?? $source['delivery_date'] ?? null,
-        'property_condition' => $item['property_condition'] ?? null,
-        'situation' => $item['situation'] ?? null,
+        'property_condition' => tokko_translate_detail_value('property_condition', $item['property_condition'] ?? null),
+        'situation' => tokko_translate_detail_value('situation', $item['situation'] ?? null),
         'age' => $item['age'] ?? null,
-        'orientation' => $item['orientation'] ?? $source['orientation'] ?? null,
-        'disposition' => $item['disposition'] ?? $source['disposition'] ?? null,
+        'orientation' => tokko_translate_detail_value('orientation', $item['orientation'] ?? $source['orientation'] ?? null),
+        'disposition' => tokko_translate_detail_value('disposition', $item['disposition'] ?? $source['disposition'] ?? null),
         'zonification' => $item['zonification'] ?? $source['zonification'] ?? null,
         'price_per_m2' => $item['price_per_m2'] ?? $source['price_per_m2'] ?? null,
         'iptu' => $item['iptu'] ?? $source['iptu'] ?? null,
-        'credit_eligible' => $item['credit_eligible'] ?? $source['credit_eligible'] ?? null,
+        'credit_eligible' => tokko_translate_detail_value('credit_eligible', $item['credit_eligible'] ?? $source['credit_eligible'] ?? null),
         'public_url' => $item['public_url'] ?? $source['public_url'] ?? $source['web_url'] ?? null,
         'unit_amount' => $item['unit_amount'] ?? $source['unit_amount'] ?? $item['development']['unit_amount'] ?? null,
         'floors_amount' => $item['floors_amount'] ?? $source['floors_amount'] ?? $item['development']['floors_amount'] ?? null,

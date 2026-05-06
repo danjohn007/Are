@@ -102,4 +102,85 @@ img, video, iframe, embed, object {
     background: linear-gradient(135deg, #434242 0%, #2f2e2e 100%);
     color: #ffffff;
   }
+
+  /* ── Page transition ────────────────────────────────────────────────── */
+  .page-enter {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  .page-entered {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  /* ── Micro-interactions ─────────────────────────────────────────────── */
+
+  /* Buttons: subtle press feedback */
+  button:not(:disabled),
+  a[class*="rounded"] {
+    @apply transition-all;
+  }
+  button:not(:disabled):active,
+  a[class*="rounded"]:active {
+    transform: scale(0.97);
+  }
+
+  /* Focus ring — brand color instead of default blue */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* Section label shimmer on hover */
+  .label-shimmer {
+    position: relative;
+    display: inline-block;
+  }
+  .label-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(188,86,29,0.15) 50%, transparent 100%);
+    background-size: 200% 100%;
+    opacity: 0;
+    transition: opacity 0.3s;
+    border-radius: inherit;
+  }
+  .label-shimmer:hover::after {
+    opacity: 1;
+    animation: shimmer 1s ease forwards;
+  }
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to   { background-position:  200% 0; }
+  }
+
+  /* Underline slide for plain text links */
+  .link-slide {
+    position: relative;
+    text-decoration: none;
+  }
+  .link-slide::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -2px;
+    height: 1.5px;
+    width: 0;
+    background: var(--color-brand);
+    transition: width 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    border-radius: 2px;
+  }
+  .link-slide:hover::after {
+    width: 100%;
+  }
+
+  /* Stagger utility classes for manual JS-free staggering */
+  .stagger-1 { animation-delay: 60ms !important; }
+  .stagger-2 { animation-delay: 120ms !important; }
+  .stagger-3 { animation-delay: 180ms !important; }
+  .stagger-4 { animation-delay: 240ms !important; }
 }

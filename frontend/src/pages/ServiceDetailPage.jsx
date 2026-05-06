@@ -54,7 +54,6 @@ export default function ServiceDetailPage() {
     );
   }
 
-  const price = Number(service.price || 0);
   const gradient = pickGradient(service.id);
   const initials = (service.name || '').slice(0, 2).toUpperCase();
 
@@ -103,9 +102,7 @@ export default function ServiceDetailPage() {
               {service.name}
             </h1>
           </div>
-          <p className="text-2xl font-black text-white drop-shadow-md md:text-3xl">
-            {price > 0 ? `$${price.toLocaleString('es-MX')} MXN` : 'Precio a consultar'}
-          </p>
+
         </div>
       </div>
 

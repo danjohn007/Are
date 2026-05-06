@@ -25,7 +25,7 @@ export default function DynamicLeadForm({ service, onSuccess }) {
     event.preventDefault();
 
     if (Number(captcha.answer) !== captcha.left + captcha.right) {
-      alert('Verificacion incorrecta. Resuelve el captcha para continuar.');
+      alert('Verificación incorrecta. Resuelve el captcha para continuar.');
       refreshCaptcha();
       return;
     }
@@ -94,10 +94,10 @@ export default function DynamicLeadForm({ service, onSuccess }) {
       ))}
 
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-semibold text-slate-700">Verificacion anti-bot</p>
+        <p className="text-sm font-semibold text-slate-700">Verificación anti-bot</p>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <label className="text-sm text-slate-700" htmlFor="lead-captcha">
-            ¿Cuanto es {captcha.left} + {captcha.right}?
+            ¿Cuánto es {captcha.left} + {captcha.right}?
           </label>
           <input
             id="lead-captcha"

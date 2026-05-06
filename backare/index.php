@@ -155,15 +155,14 @@ try {
     if ($path === '/services' && $method === 'POST') {
         require_admin();
         $input = json_input();
-        if (empty($input['name']) || empty($input['slug']) || !isset($input['price'])) {
-            respond(422, ['success' => false, 'message' => 'name, slug y price son requeridos']);
+        if (empty($input['name']) || empty($input['slug'])) {
+            respond(422, ['success' => false, 'message' => 'name y slug son requeridos']);
         }
-        $stmt = db()->prepare('INSERT INTO services (name, slug, description, price, active, image_url, form_schema) VALUES (:name, :slug, :description, :price, :active, :image_url, :form_schema)');
+        $stmt = db()->prepare('INSERT INTO services (name, slug, description, active, image_url, form_schema) VALUES (:name, :slug, :description, :active, :image_url, :form_schema)');
         $stmt->execute([
             ':name'        => $input['name'],
             ':slug'        => $input['slug'],
             ':description' => $input['description'] ?? null,
-            ':price'       => (float)$input['price'],
             ':active'      => isset($input['active']) ? ((bool)$input['active'] ? 1 : 0) : 1,
             ':image_url'   => $input['image_url'] ?? null,
             ':form_schema' => isset($input['form_schema']) ? json_encode($input['form_schema']) : null,
@@ -177,12 +176,11 @@ try {
     if (preg_match('#^/services/(\d+)$#', $path, $m) && $method === 'PUT') {
         require_admin();
         $input = json_input();
-        $stmt = db()->prepare('UPDATE services SET name=:name, slug=:slug, description=:description, price=:price, active=:active, image_url=:image_url, form_schema=:form_schema, updated_at=NOW() WHERE id=:id');
+        $stmt = db()->prepare('UPDATE services SET name=:name, slug=:slug, description=:description, active=:active, image_url=:image_url, form_schema=:form_schema, updated_at=NOW() WHERE id=:id');
         $stmt->execute([
             ':name'        => $input['name'] ?? '',
             ':slug'        => $input['slug'] ?? '',
             ':description' => $input['description'] ?? null,
-            ':price'       => (float)($input['price'] ?? 0),
             ':active'      => isset($input['active']) ? ((bool)$input['active'] ? 1 : 0) : 1,
             ':image_url'   => $input['image_url'] ?? null,
             ':form_schema' => isset($input['form_schema']) ? json_encode($input['form_schema']) : null,
@@ -424,9 +422,18 @@ try {
     }
 
     if (preg_match('#^/properties/(\d+)/units$#', $path, $m) && $method === 'GET') {
+        $numId = (int)$m[1];
         $parent = db()->prepare('SELECT tokko_id FROM properties WHERE id = :id LIMIT 1');
-        $parent->execute([':id' => (int)$m[1]]);
+        $parent->execute([':id' => $numId]);
         $parentRow = $parent->fetch();
+        // Fallback: try by tokko_id numeric part
+        if (!$parentRow) {
+            $p2 = db()->prepare(
+                "SELECT tokko_id FROM properties WHERE tokko_id IN (:pid, :did) LIMIT 1"
+            );
+            $p2->execute([':pid' => 'property:' . $numId, ':did' => 'development:' . $numId]);
+            $parentRow = $p2->fetch();
+        }
         if (!$parentRow) { respond(404, ['success' => false, 'message' => 'Desarrollo no encontrado']); }
         $stmt = db()->prepare("SELECT * FROM properties WHERE parent_tokko_id = :ptid ORDER BY price ASC, title ASC");
         $stmt->execute([':ptid' => $parentRow['tokko_id']]);
@@ -435,9 +442,22 @@ try {
     }
 
     if (preg_match('#^/properties/(\d+)$#', $path, $m) && $method === 'GET') {
+        $numId = (int)$m[1];
+        // First try by DB primary key
         $stmt = db()->prepare('SELECT * FROM properties WHERE id = :id LIMIT 1');
-        $stmt->execute([':id' => (int)$m[1]]);
+        $stmt->execute([':id' => $numId]);
         $row = $stmt->fetch();
+        // Fallback: the number might be a Tokko id (e.g. old links after re-sync)
+        if (!$row) {
+            $stmt2 = db()->prepare(
+                "SELECT * FROM properties WHERE tokko_id IN (:pid, :did) LIMIT 1"
+            );
+            $stmt2->execute([
+                ':pid' => 'property:'    . $numId,
+                ':did' => 'development:' . $numId,
+            ]);
+            $row = $stmt2->fetch();
+        }
         if (!$row) { respond(404, ['success' => false, 'message' => 'Propiedad no encontrada']); }
         respond(200, ['success' => true, 'data' => normalize_property_row($row)]);
     }
@@ -502,7 +522,7 @@ try {
     if ($path === '/properties/sync/tokko' && $method === 'POST') {
         require_admin();
         $result = tokko_sync();
-        // Reset the auto-sync timer so the next automatic run is 1 hour from now
+        // Reset the auto-sync timer so the next automatic run is 15 minutes from now
         $stampFile = __DIR__ . '/logs/last_sync.stamp';
         @file_put_contents($stampFile, 'v4|' . time(), LOCK_EX);
         respond(200, ['success' => true, 'data' => $result]);

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 const initialArticle = { title: '', slug: '', excerpt: '', content: '', image_url: '', external_url: '', published: true };
-const initialService = { name: '', slug: '', description: '', price: '', image_url: '', active: true };
+const initialService = { name: '', slug: '', description: '', image_url: '', active: true };
 
 function toSlug(text) {
   return text
@@ -116,7 +116,7 @@ export default function DashboardPage() {
 
   async function submitService(event) {
     event.preventDefault();
-    const payload = { ...serviceForm, price: parseFloat(serviceForm.price) || 0 };
+    const payload = { ...serviceForm };
     if (editingServiceId) {
       await api.put(`/services/${editingServiceId}`, payload);
     } else {
@@ -133,7 +133,6 @@ export default function DashboardPage() {
       name: s.name || '',
       slug: s.slug || '',
       description: s.description || '',
-      price: s.price || '',
       image_url: s.image_url || '',
       active: s.active !== 0 && s.active !== false,
     });
@@ -157,7 +156,6 @@ export default function DashboardPage() {
       name: s.name,
       slug: s.slug,
       description: s.description,
-      price: s.price,
       image_url: s.image_url,
       active: !s.active,
     });
@@ -231,7 +229,7 @@ export default function DashboardPage() {
       {tab === 'metrics' && (
         <div>
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <MetricCard title="Total Leads" value={metrics?.totals?.total || 0} icon={Inbox} />
+            <MetricCard title="Total de Leads" value={metrics?.totals?.total || 0} icon={Inbox} />
             <MetricCard title="Nuevos" value={metrics?.totals?.new_count || 0} icon={Sparkles} />
             <MetricCard title="Contactados" value={metrics?.totals?.contacted_count || 0} icon={Phone} />
             <MetricCard title="Cerrados" value={metrics?.totals?.closed_count || 0} icon={CheckCircle} />
@@ -309,16 +307,7 @@ export default function DashboardPage() {
                 value={serviceForm.description}
                 onChange={(e) => setServiceForm((prev) => ({ ...prev, description: e.target.value }))}
               />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className="w-full rounded-lg border p-3"
-                placeholder="Precio (MXN) — 0 si es a consultar"
-                value={serviceForm.price}
-                onChange={(e) => setServiceForm((prev) => ({ ...prev, price: e.target.value }))}
-                required
-              />
+
               <ImageUpload
                 value={serviceForm.image_url}
                 onChange={(url) => setServiceForm((prev) => ({ ...prev, image_url: url }))}
@@ -374,9 +363,7 @@ export default function DashboardPage() {
                           {s.active ? 'Activo' : 'Inactivo'}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        ${Number(s.price || 0).toLocaleString('es-MX')} MXN
-                      </p>
+
                       {s.description && (
                         <p className="text-xs text-gray-400 mt-1 line-clamp-1">{s.description}</p>
                       )}

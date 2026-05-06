@@ -8,7 +8,7 @@ const links = [
   { to: '/developments', label: 'Desarrollos' },
   { to: '/services', label: 'Servicios' },
   { to: '/blog', label: 'BLOG' },
-  { to: '/contact', label: 'Contacto' },
+  { to: '/nosotros', label: 'NOSOTROS' },
 ];
 
 export default function Navbar() {
@@ -67,9 +67,9 @@ export default function Navbar() {
           )}
           <Link
             to="/contact"
-            className="hidden rounded-lg border border-brand-500 px-4 py-2 text-sm text-brand-700 transition hover:bg-brand-50 md:block"
+            className="hidden rounded-lg bg-brand-500 px-4 py-2 text-sm text-white transition hover:bg-brand-700 md:block"
           >
-            Cotizar
+            Contáctanos
           </Link>
 
           {/* Mobile hamburger */}

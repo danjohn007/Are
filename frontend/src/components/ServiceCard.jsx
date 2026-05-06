@@ -14,7 +14,6 @@ function pickGradient(id) {
 }
 
 export default function ServiceCard({ service, onSelect }) {
-  const price = Number(service.price || 0);
   const gradient = pickGradient(service.id);
   const initials = (service.name || '').slice(0, 2).toUpperCase();
 
@@ -42,9 +41,7 @@ export default function ServiceCard({ service, onSelect }) {
           <span className="absolute left-4 top-4 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
             Servicio
           </span>
-          <p className="absolute bottom-3 left-4 text-2xl font-black text-white">
-            {price > 0 ? `$${price.toLocaleString('es-MX')} MXN` : 'A consultar'}
-          </p>
+
         </div>
       </Link>
 

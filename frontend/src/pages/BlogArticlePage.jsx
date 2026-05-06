@@ -36,8 +36,8 @@ function estimateReadingTime(article) {
 
 function inferCategory(article) {
   const text = `${article?.title || ''} ${article?.excerpt || ''}`.toLowerCase();
-  if (/inversion|rentabilidad|roi|capital/.test(text)) return 'Inversion';
-  if (/compra|venta|hipoteca|credito/.test(text)) return 'Guia';
+  if (/inversion|rentabilidad|roi|capital/.test(text)) return 'Inversión';
+  if (/compra|venta|hipoteca|credito/.test(text)) return 'Guía';
   if (/zona|colonia|ciudad|mercado|plusvalia/.test(text)) return 'Mercado';
   if (/legal|fiscal|impuesto|contrato|notaria/.test(text)) return 'Legal';
   return 'Tendencias';

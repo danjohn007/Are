@@ -16,6 +16,7 @@ export default function ContactPage() {
     message: serviceName ? `Necesito información sobre el servicio: ${serviceName}\n\n` : '',
   }));
   const [loading, setLoading] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [captcha, setCaptcha] = useState(() => {
     const left = Math.floor(Math.random() * 9) + 1;
     const right = Math.floor(Math.random() * 9) + 1;
@@ -36,7 +37,7 @@ export default function ContactPage() {
     event.preventDefault();
 
     if (Number(captcha.answer) !== captcha.left + captcha.right) {
-      alert('Verificacion incorrecta. Resuelve el captcha para continuar.');
+      alert('Verificación incorrecta. Resuelve el captcha para continuar.');
       refreshCaptcha();
       return;
     }
@@ -184,11 +185,27 @@ export default function ContactPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 pt-1 md:flex-row md:items-center md:justify-between">
-              <p className="text-xs leading-5 text-slate-500">Al enviar este formulario, un asesor revisará tu solicitud y te contactará con seguimiento personalizado.</p>
+            {/* Términos y condiciones */}
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={accepted}
+                onChange={(e) => setAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-brand-500 cursor-pointer"
+              />
+              <span className="text-xs leading-relaxed text-slate-500">
+                He leído y acepto los{' '}
+                <a href="http://alterrarealestate.tuinmobiliaria.com.ar/Privacidad" target="_blank" rel="noreferrer" className="font-semibold text-brand-500 underline underline-offset-2 hover:text-brand-600">
+                  términos y condiciones
+                </a>{' '}
+                y el tratamiento de mis datos personales conforme al aviso de privacidad de ARE Inmobiliaria.
+              </span>
+            </label>
+
+            <div className="flex flex-col gap-3 pt-1 md:flex-row md:items-center md:justify-end">
               <button
-                className="inline-flex min-w-[220px] items-center justify-center rounded-xl bg-brand-500 px-5 py-3 font-bold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-70"
-                disabled={loading}
+                className="inline-flex min-w-[220px] items-center justify-center rounded-xl bg-brand-500 px-5 py-3 font-bold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={loading || !accepted || !captcha.answer}
                 type="submit"
               >
                 {loading ? 'Enviando...' : 'Enviar mensaje'}
