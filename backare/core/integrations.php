@@ -131,6 +131,7 @@ function ensure_property_columns(): void
         'reference_code' => 'ADD COLUMN reference_code VARCHAR(80) NULL AFTER property_type',
         'location_full' => 'ADD COLUMN location_full VARCHAR(255) NULL AFTER reference_code',
         'parent_tokko_id' => 'ADD COLUMN parent_tokko_id VARCHAR(80) NULL AFTER location_full',
+        'branch_name'    => 'ADD COLUMN branch_name VARCHAR(120) NULL AFTER parent_tokko_id',
         'photos_json' => 'ADD COLUMN photos_json LONGTEXT NULL AFTER image_url',
         'tags_json' => 'ADD COLUMN tags_json LONGTEXT NULL AFTER photos_json',
         'videos_json' => 'ADD COLUMN videos_json LONGTEXT NULL AFTER tags_json',
@@ -146,6 +147,13 @@ function ensure_property_columns(): void
 
     if ($alterations) {
         $pdo->exec('ALTER TABLE properties ' . implode(', ', $alterations));
+    }
+
+    // Index on listing_kind + branch_name for fast filtering
+    try {
+        $pdo->exec('ALTER TABLE properties ADD INDEX idx_listing_kind (listing_kind), ADD INDEX idx_branch_name (branch_name)');
+    } catch (\Throwable) {
+        // Indexes already exist — ignore
     }
 
     $ensured = true;
@@ -248,12 +256,12 @@ function tokko_sync(): array
         INSERT INTO properties (
             tokko_id, title, description, price, address, city, bedrooms, bathrooms, area, image_url,
             photos_json, tags_json, videos_json, files_json, details_json,
-            operation_type, listing_kind, property_type, reference_code, location_full, parent_tokko_id
+            operation_type, listing_kind, property_type, reference_code, location_full, parent_tokko_id, branch_name
         )
         VALUES (
             :tokko_id, :title, :description, :price, :address, :city, :bedrooms, :bathrooms, :area, :image_url,
             :photos_json, :tags_json, :videos_json, :files_json, :details_json,
-            :operation_type, :listing_kind, :property_type, :reference_code, :location_full, :parent_tokko_id
+            :operation_type, :listing_kind, :property_type, :reference_code, :location_full, :parent_tokko_id, :branch_name
         )
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
@@ -276,6 +284,7 @@ function tokko_sync(): array
             reference_code = VALUES(reference_code),
             location_full = VALUES(location_full),
             parent_tokko_id = VALUES(parent_tokko_id),
+            branch_name = VALUES(branch_name),
             updated_at = NOW()
     ";
 
@@ -352,6 +361,7 @@ function tokko_sync(): array
                 ':reference_code'  => $item['reference_code'] ?? null,
                 ':location_full'   => $item['location']['full_location'] ?? null,
                 ':parent_tokko_id' => 'development:' . $devId,
+                ':branch_name'     => $item['branch']['name'] ?? null,
             ];
 
             continue; // don't insert this unit as a standalone property
@@ -400,6 +410,7 @@ function tokko_sync(): array
             ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
             ':location_full'   => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
             ':parent_tokko_id' => null,
+            ':branch_name'    => $source['branch']['name'] ?? $item['branch']['name'] ?? null,
         ]);
         $seenPropertyIds[] = 'property:' . $rawId;
         $synced++;
@@ -499,6 +510,7 @@ function tokko_sync(): array
             ':reference_code' => $source['reference_code'] ?? $item['reference_code'] ?? null,
             ':location_full'  => $source['location']['full_location'] ?? $item['location']['full_location'] ?? null,
             ':parent_tokko_id' => null,
+            ':branch_name'    => $source['branch']['name'] ?? $item['branch']['name'] ?? null,
         ]);
         $seenDevTokkoIds[] = $devTokkoId;
         $synced++;

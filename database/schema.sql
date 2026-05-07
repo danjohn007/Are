@@ -65,6 +65,12 @@ CREATE TABLE IF NOT EXISTS articles (
 -- Migration: add external_url column to existing databases
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS external_url TEXT AFTER image_url;
 
+CREATE TABLE IF NOT EXISTS site_content (
+  `key` VARCHAR(100) NOT NULL PRIMARY KEY,
+  `value` LONGTEXT,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Migration: add active and image_url columns to services
 ALTER TABLE services ADD COLUMN active TINYINT(1) NOT NULL DEFAULT 1 AFTER price;
 ALTER TABLE services ADD COLUMN image_url TEXT NULL AFTER active;

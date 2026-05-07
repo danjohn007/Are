@@ -50,15 +50,15 @@ export default function App() {
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/nosotros" element={<AboutPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
-          }
-        />
       </Route>
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 }

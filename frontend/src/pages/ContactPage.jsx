@@ -13,7 +13,11 @@ export default function ContactPage() {
     name: '',
     email: '',
     phone: '',
-    message: serviceName ? `Necesito información sobre el servicio: ${serviceName}\n\n` : '',
+    message: serviceName
+      ? `Necesito información sobre el servicio: ${serviceName}\n\n`
+      : propertyTitle
+        ? `Necesito información sobre la propiedad: ${propertyTitle}\n\n`
+        : ``,
   }));
   const [loading, setLoading] = useState(false);
   const [accepted, setAccepted] = useState(false);
@@ -45,15 +49,9 @@ export default function ContactPage() {
     setLoading(true);
 
     try {
-      // Construir el mensaje final con el servicio siempre incluido
-      const servicePrefix = serviceName
-        ? `Servicio de interés: ${serviceName}\n\n`
-        : '';
-      const finalMessage = servicePrefix + (form.message || '');
-
       await api.post('/leads', {
         ...form,
-        message: finalMessage,
+        message: form.message,
         source: 'contact-page',
         ...(propertyId ? { property_id: propertyId } : {}),
         ...(serviceId  ? { service_id: serviceId }   : {}),
@@ -140,12 +138,17 @@ export default function ContactPage() {
             </div>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-700">Teléfono</span>
+              <span className="mb-2 block text-sm font-semibold text-slate-700">Teléfono / Celular</span>
               <input
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-brand-400 focus:bg-white"
-                placeholder="Tu número de contacto"
+                placeholder="10 dígitos (ej. 4421234567)"
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
                 value={form.phone}
-                onChange={(e) => setValue('phone', e.target.value)}
+                onChange={(e) => setValue('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                pattern="[0-9]{10}"
+                title="Ingresa exactamente 10 dígitos sin espacios ni guiones"
                 required
               />
             </label>
@@ -158,6 +161,7 @@ export default function ContactPage() {
                 placeholder="Cuéntanos si buscas comprar, vender, invertir o recibir información puntual."
                 value={form.message}
                 onChange={(e) => setValue('message', e.target.value)}
+                required
               />
             </label>
 
@@ -198,7 +202,11 @@ export default function ContactPage() {
                 <a href="http://alterrarealestate.tuinmobiliaria.com.ar/Privacidad" target="_blank" rel="noreferrer" className="font-semibold text-brand-500 underline underline-offset-2 hover:text-brand-600">
                   términos y condiciones
                 </a>{' '}
-                y el tratamiento de mis datos personales conforme al aviso de privacidad de ARE Inmobiliaria.
+                y el{' '}
+                <a href="http://alterrarealestate.tuinmobiliaria.com.ar/Privacidad" target="_blank" rel="noreferrer" className="font-semibold text-brand-500 underline underline-offset-2 hover:text-brand-600">
+                  aviso de privacidad
+                </a>{' '}
+                de ARE Inmobiliaria.
               </span>
             </label>
 

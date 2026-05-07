@@ -2,81 +2,106 @@ import { useEffect, useMemo, useState } from 'react';
 import { getAllPaginated } from '../services/api';
 import DevelopmentCard from '../components/DevelopmentCard';
 
-function normalizeCity(s) {
+function normalize(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
-function capitalizeCity(s) {
-  if (!s) return s;
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+function coloniaFrom(locationFull) {
+  if (!locationFull) return '';
+  return locationFull.split(',')[0].trim();
 }
+
+const ChevronDown = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+  </svg>
+);
+
+const OPERATION_LABELS = {
+  venta: 'En Venta',
+  renta: 'En Renta',
+  alquiler: 'En Renta',
+  'alquiler temporario': 'Alquiler temporal',
+  venta_y_alquiler: 'Venta y Alquiler',
+};
 
 export default function DevelopmentsPage() {
   const [allDevelopments, setAllDevelopments] = useState([]);
-  const [operacion, setOperacion] = useState(null);
-  const [ciudad, setCiudad] = useState('');
+  const [operacion, setOperacion]   = useState(null);
+  const [typeFilter, setTypeFilter] = useState('');
+  const [zonaFilter, setZonaFilter] = useState('');
+  const [coloniaFilter, setColoniaFilter] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError]     = useState('');
 
   useEffect(() => {
     async function fetchDevelopments() {
       try {
         setLoading(true);
         setError('');
-        const data = await getAllPaginated('/properties', {
-          listing_kind: 'development'
-        });
+        const data = await getAllPaginated('/properties', { listing_kind: 'development' });
         setAllDevelopments(data);
-      } catch (_error) {
+      } catch {
         setAllDevelopments([]);
         setError('No pudimos cargar desarrollos en este momento. Revisa la URL del API en producción.');
       } finally {
         setLoading(false);
       }
     }
-
     fetchDevelopments();
   }, []);
 
-  // Mapa de valores de Tokko → etiquetas en español
-  const OPERATION_LABELS = {
-    venta: 'En Venta',
-    renta: 'En Renta',
-    alquiler: 'En Renta',
-    'alquiler temporario': 'Alquiler temporal',
-    venta_y_alquiler: 'Venta y Alquiler',
-  };
+  const baseSubset = useMemo(() =>
+    operacion ? allDevelopments.filter(d => normalize(d.operation_type) === operacion) : allDevelopments,
+  [allDevelopments, operacion]);
 
-  // Tipos de operación presentes en los datos actuales
   const operacionesDisponibles = useMemo(() => {
     const seen = new Set();
     for (const d of allDevelopments) {
-      if (d.operation_type) seen.add(d.operation_type.toLowerCase().trim());
+      if (d.operation_type) seen.add(normalize(d.operation_type));
     }
     return Array.from(seen).sort((a, b) => a.localeCompare(b, 'es'));
   }, [allDevelopments]);
 
-  // Ciudades disponibles según operación seleccionada
-  const ciudadesDisponibles = useMemo(() => {
+  const availableTypes = useMemo(() => {
     const seen = new Map();
-    const base = operacion
-      ? allDevelopments.filter((d) => (d.operation_type || '').toLowerCase().trim() === operacion)
-      : allDevelopments;
-    for (const d of base) {
-      if (d.city) {
-        const key = normalizeCity(d.city);
-        if (!seen.has(key)) seen.set(key, capitalizeCity(d.city.trim()));
+    for (const d of baseSubset) {
+      if (d.property_type) {
+        const key = normalize(d.property_type);
+        if (!seen.has(key)) seen.set(key, d.property_type.trim());
       }
     }
     return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'es'));
-  }, [allDevelopments, operacion]);
+  }, [baseSubset]);
+
+  const availableZonas = useMemo(() => {
+    const seen = new Set();
+    for (const d of baseSubset) {
+      if (d.city) seen.add(d.city.trim());
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [baseSubset]);
+
+  const availableColonias = useMemo(() => {
+    const seen = new Set();
+    const base = zonaFilter ? baseSubset.filter(d => normalize(d.city) === normalize(zonaFilter)) : baseSubset;
+    for (const d of base) {
+      const col = coloniaFrom(d.location_full);
+      if (col) seen.add(col);
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [baseSubset, zonaFilter]);
 
   const developments = useMemo(() => {
-    let result = allDevelopments;
-    if (operacion) result = result.filter((d) => (d.operation_type || '').toLowerCase().trim() === operacion);
-    if (ciudad) result = result.filter((d) => normalizeCity(d.city) === normalizeCity(ciudad));
+    let result = baseSubset;
+    if (typeFilter)    result = result.filter(d => normalize(d.property_type) === normalize(typeFilter));
+    if (zonaFilter)    result = result.filter(d => normalize(d.city) === normalize(zonaFilter));
+    if (coloniaFilter) result = result.filter(d => normalize(coloniaFrom(d.location_full)) === normalize(coloniaFilter));
     return result;
-  }, [allDevelopments, operacion, ciudad]);
+  }, [baseSubset, typeFilter, zonaFilter, coloniaFilter]);
+
+  const resetDependentFilters = () => { setZonaFilter(''); setColoniaFilter(''); setTypeFilter(''); };
+  const anyFilterActive = operacion || typeFilter || zonaFilter || coloniaFilter;
 
   return (
     <section className="section-shell py-14">
@@ -90,7 +115,6 @@ export default function DevelopmentsPage() {
       {/* ── Filtros ── */}
       {!loading && !error && (
         <div className="mb-10 flex flex-wrap items-center gap-x-6 gap-y-4 rounded-2xl border border-gray-100 bg-white px-6 py-4 shadow-sm">
-          {/* Icono + etiqueta */}
           <div className="flex items-center gap-2 text-slate-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
@@ -100,14 +124,12 @@ export default function DevelopmentsPage() {
 
           <div className="h-5 w-px bg-gray-200 hidden sm:block" />
 
-          {/* Tipo de operación */}
+          {/* Operación */}
           <div className="flex items-center gap-1 rounded-xl border border-gray-100 bg-gray-50 p-1">
             <button
               type="button"
-              onClick={() => { setOperacion(null); setCiudad(''); }}
-              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${
-                operacion === null ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
-              }`}
+              onClick={() => { setOperacion(null); resetDependentFilters(); }}
+              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${operacion === null ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
             >
               Todos
             </button>
@@ -115,40 +137,72 @@ export default function DevelopmentsPage() {
               <button
                 key={op}
                 type="button"
-                onClick={() => { setOperacion(op); setCiudad(''); }}
-                className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${
-                  operacion === op ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                }`}
+                onClick={() => { setOperacion(op); resetDependentFilters(); }}
+                className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${operacion === op ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 {OPERATION_LABELS[op] || (op.charAt(0).toUpperCase() + op.slice(1))}
               </button>
             ))}
           </div>
 
-          {ciudadesDisponibles.length > 0 && (
-            <>
-              <div className="h-5 w-px bg-gray-200 hidden sm:block" />
+          <div className="h-5 w-px bg-gray-200 hidden sm:block" />
 
-              {/* Filtro por ciudad */}
-              <div className="relative">
-                <select
-                  value={ciudad}
-                  onChange={(e) => setCiudad(e.target.value)}
-                  className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
-                >
-                  <option value="">Todas las ciudades</option>
-                  {ciudadesDisponibles.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </>
+          {/* Tipo de inmueble */}
+          {availableTypes.length > 0 && (
+            <div className="relative">
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+              >
+                <option value="">Tipo de inmueble</option>
+                {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <ChevronDown />
+            </div>
           )}
 
-          {/* Contador de resultados */}
+          {/* Zona */}
+          {availableZonas.length > 0 && (
+            <div className="relative">
+              <select
+                value={zonaFilter}
+                onChange={(e) => { setZonaFilter(e.target.value); setColoniaFilter(''); }}
+                className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+              >
+                <option value="">Zona</option>
+                {availableZonas.map(z => <option key={z} value={z}>{z}</option>)}
+              </select>
+              <ChevronDown />
+            </div>
+          )}
+
+          {/* Colonia */}
+          {availableColonias.length > 0 && (
+            <div className="relative">
+              <select
+                value={coloniaFilter}
+                onChange={(e) => setColoniaFilter(e.target.value)}
+                className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+              >
+                <option value="">Colonia / Fracc.</option>
+                {availableColonias.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <ChevronDown />
+            </div>
+          )}
+
+          {/* Limpiar filtros */}
+          {anyFilterActive && (
+            <button
+              type="button"
+              onClick={() => { setOperacion(null); resetDependentFilters(); }}
+              className="text-xs text-granite underline hover:text-brand-500 transition"
+            >
+              Limpiar filtros
+            </button>
+          )}
+
           <span className="ml-auto text-sm text-slate-400">
             {developments.length} resultado{developments.length !== 1 ? 's' : ''}
           </span>

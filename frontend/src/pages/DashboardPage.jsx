@@ -3,12 +3,27 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ImageUpload from '../components/ImageUpload';
 import {
-  Inbox, Sparkles, Phone, CheckCircle, Home,
-  Trash2, Save, Pencil, X, RefreshCw, Wrench
+  Inbox, Sparkles, Phone, CheckCircle, Home, Building2,
+  Trash2, Save, Pencil, X, RefreshCw, Wrench, Plus,
+  LayoutDashboard, Newspaper, LogOut, TrendingUp, Clock, User, Tag,
+  Users2, FileText, Shield, Target, Upload, Download,
+  Star, Award, Handshake, MapPin, Key, BarChart2, Heart, Zap, Globe, Lock,
 } from 'lucide-react';
+
+const DIFF_ICONS = {
+  CheckCircle, Home, Users2, TrendingUp, Star, Award,
+  Handshake, MapPin, Key, BarChart2, Heart, Zap, Globe, Lock, Shield, Phone,
+};
+const DIFF_ICON_KEYS = Object.keys(DIFF_ICONS);
 
 const initialArticle = { title: '', slug: '', excerpt: '', content: '', image_url: '', external_url: '', published: true };
 const initialService = { name: '', slug: '', description: '', image_url: '', active: true };
+
+const INPUT = [
+  'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-arsenic',
+  'placeholder:text-gray-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-2',
+  'focus:ring-brand-100 transition-all font-body',
+].join(' ');
 
 function toSlug(text) {
   return text
@@ -19,6 +34,42 @@ function toSlug(text) {
     .trim()
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
+}
+
+const DEFAULT_FACTS = [
+  { number: '1999',   label: 'Ano de fundacion' },
+  { number: '+25',    label: 'Anos de trayectoria' },
+  { number: '500+',   label: 'Propiedades activas' },
+  { number: '1,200+', label: 'Clientes cerrados' },
+  { number: '98%',    label: 'Tasa de cierre' },
+  { number: '3',      label: 'Oficinas en Queretaro' },
+];
+
+const DEFAULT_TEAM = [
+  { name: 'Roberto Alvarez', role: 'Director General', bio: 'Fundador de ARE con mas de 25 anos en el sector inmobiliario. Especialista en desarrollos residenciales y comerciales.', photo: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&q=80' },
+  { name: 'Fernanda Castro', role: 'Directora Comercial', bio: 'Experta en captacion y cierre de operaciones. Mas de 15 anos asesorando a clientes en compra y renta de alto valor.', photo: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&q=80' },
+  { name: 'Miguel Herrera', role: 'Asesor Senior', bio: 'Especialista en propiedades residenciales de lujo y zonas de alta plusvalia en el Bajio. Certificado AMPI.', photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&q=80' },
+  { name: 'Lucia Mendoza', role: 'Asesora Inmobiliaria', bio: 'Especializada en desarrollos nuevos y primera vivienda. Conoce a fondo el mercado de Juriquilla y El Marques.', photo: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&q=80' },
+];
+
+const DEFAULT_TIMELINE = [
+  { year: '1999', desc: 'Fundacion en Queretaro con enfoque en bienes raices residenciales.' },
+  { year: '2005', desc: 'Expansion al segmento comercial y apertura de segunda oficina.' },
+  { year: '2012', desc: 'Inicio de comercializacion de desarrollos de alto impacto.' },
+  { year: '2019', desc: 'Lanzamiento de nuestra plataforma digital propia.' },
+  { year: '2024', desc: 'Reconocimiento como Top Agencia AMPI Queretaro.' },
+];
+
+const DEFAULT_DIFFERENTIATORS = [
+  { icon: 'CheckCircle', title: 'Asesores certificados AMPI', desc: 'Todo nuestro equipo cuenta con certificacion de la Asociacion Mexicana de Profesionales Inmobiliarios.' },
+  { icon: 'TrendingUp',  title: 'Estudio de mercado incluido', desc: 'Valuacion sin costo con cada operacion para garantizar decisiones informadas.' },
+  { icon: 'Home',        title: 'Cartera exclusiva', desc: 'Acceso a propiedades fuera de mercado y preventa antes de publicacion publica.' },
+  { icon: 'Users2',      title: 'Acompanamiento total', desc: 'Desde la busqueda hasta escrituracion: juridico, financiero y logistico.' },
+];
+
+function tryJson(str, fallback) {
+  try { const p = JSON.parse(str); return Array.isArray(p) ? p : fallback; }
+  catch { return fallback; }
 }
 
 export default function DashboardPage() {
@@ -36,15 +87,35 @@ export default function DashboardPage() {
   const formRef = useRef(null);
   const serviceFormRef = useRef(null);
 
+  // Site content
+  const [contentLoaded, setContentLoaded] = useState(false);
+  const [aboutHeroDesc, setAboutHeroDesc] = useState('Mas de dos decadas conectando familias y empresas con las mejores propiedades de Queretaro y el Bajio. Transparentes, comprometidos y siempre a tu lado.');
+  const [aboutHeroImage, setAboutHeroImage] = useState('https://images.unsplash.com/photo-1497366216548-37526070297c?w=900&q=80');
+  const [aboutFacts, setAboutFacts] = useState(DEFAULT_FACTS);
+  const [aboutTeam, setAboutTeam] = useState(DEFAULT_TEAM);
+  const [aboutTimeline, setAboutTimeline] = useState(DEFAULT_TIMELINE);
+  const [aboutMission, setAboutMission] = useState({ title: '', desc: '' });
+  const [aboutVision, setAboutVision] = useState({ title: '', desc: '' });
+  const [aboutDifferentiators, setAboutDifferentiators] = useState(DEFAULT_DIFFERENTIATORS);
+  const [aboutBrochure, setAboutBrochure] = useState('');
+  const [legalPrivacy, setLegalPrivacy] = useState('http://alterrarealestate.tuinmobiliaria.com.ar/Privacidad');
+  const [legalTerms, setLegalTerms] = useState('');
+  const [saving, setSaving] = useState('');
+
+  // Leads CRM
+  const [leads, setLeads] = useState([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [leadsStatusFilter, setLeadsStatusFilter] = useState('');
+
   async function syncTokko() {
     setSyncing(true);
     setSyncMsg('');
     try {
       const res = await api.post('/properties/sync/tokko');
       const count = res.data?.data?.synced ?? '?';
-      setSyncMsg(`✅ Sincronización completada — ${count} propiedades actualizadas.`);
+      setSyncMsg(`Sincronizacion completada - ${count} propiedades actualizadas.`);
     } catch {
-      setSyncMsg('❌ Error al sincronizar. Intenta nuevamente.');
+      setSyncMsg('Error al sincronizar. Intenta nuevamente.');
     } finally {
       setSyncing(false);
     }
@@ -53,9 +124,8 @@ export default function DashboardPage() {
   async function loadData() {
     const [m, a] = await Promise.all([
       api.get('/dashboard/metrics'),
-      api.get('/articles?limit=50&page=1&all=1')
+      api.get('/articles?limit=50&page=1&all=1'),
     ]);
-
     setMetrics(m.data.data);
     setArticles(a.data.data);
   }
@@ -65,13 +135,70 @@ export default function DashboardPage() {
     setServices(res.data.data || []);
   }
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  async function loadSiteContent() {
+    if (contentLoaded) return;
+    try {
+      const res = await api.get('/site-content');
+      const d = res.data.data || {};
+      if (d.about_description) setAboutHeroDesc(d.about_description);
+      if (d.about_hero_image) setAboutHeroImage(d.about_hero_image);
+      if (d.about_facts) setAboutFacts(tryJson(d.about_facts, DEFAULT_FACTS));
+      if (d.about_team) setAboutTeam(tryJson(d.about_team, DEFAULT_TEAM));
+      if (d.about_timeline) setAboutTimeline(tryJson(d.about_timeline, DEFAULT_TIMELINE));
+      if (d.about_mission) {
+        try { const p = JSON.parse(d.about_mission); setAboutMission({ title: p.title || '', desc: p.desc || '' }); }
+        catch { setAboutMission({ title: d.about_mission, desc: '' }); }
+      }
+      if (d.about_vision) {
+        try { const p = JSON.parse(d.about_vision); setAboutVision({ title: p.title || '', desc: p.desc || '' }); }
+        catch { setAboutVision({ title: d.about_vision, desc: '' }); }
+      }
+      if (d.about_differentiators) setAboutDifferentiators(tryJson(d.about_differentiators, DEFAULT_DIFFERENTIATORS));
+      if (d.about_brochure) setAboutBrochure(d.about_brochure);
+      if (d.legal_privacy) setLegalPrivacy(d.legal_privacy);
+      if (d.legal_terms) setLegalTerms(d.legal_terms);
+    } catch {}
+    finally { setContentLoaded(true); }
+  }
 
-  useEffect(() => {
-    if (tab === 'services') loadServices();
-  }, [tab]);
+  async function saveKey(key, value, label) {
+    setSaving(label);
+    try { await api.put(`/site-content/${key}`, { value }); }
+    finally { setSaving(''); }
+  }
+
+  async function uploadDoc(file, setter) {
+    const formData = new FormData();
+    formData.append('image', file);
+    setSaving('doc');
+    try {
+      const res = await api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setter(res.data.data.url);
+    } finally { setSaving(''); }
+  }
+
+  async function loadLeads(status = '') {
+    setLeadsLoading(true);
+    try {
+      const params = status ? `?status=${status}&limit=100&page=1` : '?limit=100&page=1';
+      const res = await api.get(`/leads${params}`);
+      setLeads(res.data.data || []);
+    } catch { setLeads([]); }
+    finally { setLeadsLoading(false); }
+  }
+
+  async function updateLeadStatus(id, newStatus) {
+    try {
+      await api.patch(`/leads/${id}`, { status: newStatus });
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
+    } catch { alert('No se pudo actualizar el estado.'); }
+  }
+
+  useEffect(() => { loadData(); }, []);
+  useEffect(() => { if (tab === 'services') loadServices(); }, [tab]);
+  useEffect(() => { if (tab === 'leads') loadLeads(leadsStatusFilter); }, [tab]); // eslint-disable-line
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tab === 'about' || tab === 'legal') loadSiteContent(); }, [tab]);
 
   async function submitArticle(event) {
     event.preventDefault();
@@ -80,7 +207,6 @@ export default function DashboardPage() {
     } else {
       await api.post('/articles', articleForm);
     }
-
     setEditingArticleId(null);
     setArticleForm(initialArticle);
     await loadData();
@@ -97,9 +223,7 @@ export default function DashboardPage() {
       external_url: article.external_url || '',
       published: article.published !== 0 && article.published !== false,
     });
-    setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   }
 
   function cancelEditArticle() {
@@ -108,7 +232,7 @@ export default function DashboardPage() {
   }
 
   async function deleteArticle(id) {
-    if (window.confirm('¿Eliminar este artículo?')) {
+    if (window.confirm('Eliminar este articulo?')) {
       await api.delete(`/articles/${id}`);
       await loadData();
     }
@@ -116,11 +240,10 @@ export default function DashboardPage() {
 
   async function submitService(event) {
     event.preventDefault();
-    const payload = { ...serviceForm };
     if (editingServiceId) {
-      await api.put(`/services/${editingServiceId}`, payload);
+      await api.put(`/services/${editingServiceId}`, { ...serviceForm });
     } else {
-      await api.post('/services', payload);
+      await api.post('/services', { ...serviceForm });
     }
     setEditingServiceId(null);
     setServiceForm(initialService);
@@ -145,7 +268,7 @@ export default function DashboardPage() {
   }
 
   async function deleteService(id) {
-    if (window.confirm('¿Eliminar este servicio?')) {
+    if (window.confirm('Eliminar este servicio?')) {
       await api.delete(`/services/${id}`);
       await loadServices();
     }
@@ -153,420 +276,1159 @@ export default function DashboardPage() {
 
   async function toggleServiceActive(s) {
     await api.put(`/services/${s.id}`, {
-      name: s.name,
-      slug: s.slug,
-      description: s.description,
-      image_url: s.image_url,
-      active: !s.active,
+      name: s.name, slug: s.slug, description: s.description,
+      image_url: s.image_url, active: !s.active,
     });
     await loadServices();
   }
 
   async function toggleArticlePublished(art) {
     await api.put(`/articles/${art.id}`, {
-      title: art.title,
-      slug: art.slug,
-      excerpt: art.excerpt,
-      content: art.content,
-      image_url: art.image_url,
-      external_url: art.external_url,
-      published: !art.published,
+      title: art.title, slug: art.slug, excerpt: art.excerpt,
+      content: art.content, image_url: art.image_url,
+      external_url: art.external_url, published: !art.published,
     });
     await loadData();
   }
 
-  const tabs = [
-    { id: 'metrics', label: '📊 Métricas' },
-    { id: 'services', label: '🛠️ Servicios' },
-    { id: 'articles', label: '📰 BLOG' }
+  const navItems = [
+    { id: 'metrics',  label: 'Metricas',         icon: LayoutDashboard },
+    { id: 'leads',    label: 'Leads / CRM',       icon: Inbox },
+    { id: 'about',    label: 'Pagina Nosotros',   icon: Users2 },
+    { id: 'services', label: 'Servicios',         icon: Wrench },
+    { id: 'articles', label: 'Blog / Noticias',   icon: Newspaper },
+    { id: 'legal',    label: 'Aviso / Terminos',  icon: FileText },
   ];
 
+  const tabLabels = {
+    metrics:  'Metricas y Actividad',
+    leads:    'Leads / CRM',
+    about:    'Pagina Nosotros',
+    services: 'Gestion de Servicios',
+    articles: 'Blog / Noticias',
+    legal:    'Documentos Legales',
+  };
+
   return (
-    <section className="section-shell py-12">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="font-heading text-3xl font-black text-slate-950">Panel Administrativo</h1>
-        <button className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100" onClick={logout} type="button">
-          🚪 Cerrar sesión
-        </button>
-      </div>
+    <div className="flex h-screen overflow-hidden bg-isabelline font-body">
 
-      {/* Tab Navigation */}
-      <div className="mb-8 flex gap-2 border-b border-gray-200 overflow-x-auto">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`pb-3 px-4 font-semibold transition whitespace-nowrap ${
-              tab === t.id
-                ? 'border-b-2 border-brand-500 text-brand-700'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* SIDEBAR */}
+      <aside className="flex h-full w-60 shrink-0 flex-col overflow-hidden bg-slate-950">
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        <span>Solicitudes, Propiedades y Servicios se administran en Tokko Broker.</span>
-        <button
-          type="button"
-          onClick={syncTokko}
-          disabled={syncing}
-          className="flex items-center gap-2 rounded-lg bg-amber-700 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800 disabled:opacity-60"
-        >
-          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Sincronizando...' : 'Sincronizar Tokko'}
-        </button>
-      </div>
-      {syncMsg && (
-        <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
-          {syncMsg}
+        {/* Logo */}
+        <div className="flex shrink-0 items-center justify-center border-b border-white/10 px-5 py-5">
+          <img
+            src={`${import.meta.env.BASE_URL}color_are.png`}
+            alt="ARE Inmobiliaria"
+            className="h-20 w-auto object-contain brightness-0 invert"
+          />
         </div>
-      )}
 
-      {/* Métricas Tab */}
-      {tab === 'metrics' && (
-        <div>
-          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <MetricCard title="Total de Leads" value={metrics?.totals?.total || 0} icon={Inbox} />
-            <MetricCard title="Nuevos" value={metrics?.totals?.new_count || 0} icon={Sparkles} />
-            <MetricCard title="Contactados" value={metrics?.totals?.contacted_count || 0} icon={Phone} />
-            <MetricCard title="Cerrados" value={metrics?.totals?.closed_count || 0} icon={CheckCircle} />
-            <MetricCard title="Propiedades" value={metrics?.totals?.total_properties || 0} icon={Home} />
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            <section className="rounded-2xl border bg-white p-6 shadow-sm">
-              <h3 className="font-heading text-xl font-bold">Leads por Servicio</h3>
-              <div className="mt-4 space-y-3">
-                {(metrics?.byService || []).map((item) => (
-                  <div key={item.name} className="flex items-center justify-between border-b pb-2">
-                    <span className="font-medium">{item.name}</span>
-                    <span className="text-lg font-bold text-brand-600">{item.total}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border bg-white p-6 shadow-sm">
-              <h3 className="font-heading text-xl font-bold">Últimos Leads</h3>
-              <div className="mt-4 space-y-3">
-                {(metrics?.latest || []).map((lead) => (
-                  <div key={lead.id} className="rounded-lg border p-3">
-                    <p className="font-semibold">{lead.name}</p>
-                    <p className="text-xs text-gray-500">{new Date(lead.created_at).toLocaleString('es-MX')}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-        </div>
-      )}
-
-      {/* Servicios Tab */}
-      {tab === 'services' && (
-        <div className="grid gap-8 lg:grid-cols-2">
-          {/* Formulario crear/editar */}
-          <section
-            ref={serviceFormRef}
-            className={`rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 ${
-              editingServiceId ? 'border-brand-400 ring-2 ring-brand-200' : ''
-            }`}
-          >
-            <h3 className="font-heading text-xl font-bold mb-4 flex items-center gap-2">
-              <Wrench size={20} className="text-brand-500" />
-              {editingServiceId ? 'Editar Servicio' : 'Crear Servicio'}
-            </h3>
-            <form className="space-y-4" onSubmit={submitService}>
-              <input
-                className="w-full rounded-lg border p-3"
-                placeholder="Nombre del servicio"
-                value={serviceForm.name}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  setServiceForm((prev) => ({
-                    ...prev,
-                    name,
-                    slug: editingServiceId ? prev.slug : toSlug(name),
-                  }));
-                }}
-                required
-              />
-              <input
-                className="w-full rounded-lg border p-3 text-sm text-gray-500"
-                placeholder="Slug (auto-generado)"
-                value={serviceForm.slug}
-                onChange={(e) => setServiceForm((prev) => ({ ...prev, slug: e.target.value }))}
-                required
-              />
-              <textarea
-                className="w-full rounded-lg border p-3"
-                placeholder="Descripción del servicio"
-                rows={3}
-                value={serviceForm.description}
-                onChange={(e) => setServiceForm((prev) => ({ ...prev, description: e.target.value }))}
-              />
-
-              <ImageUpload
-                value={serviceForm.image_url}
-                onChange={(url) => setServiceForm((prev) => ({ ...prev, image_url: url }))}
-                label="Imagen del servicio (opcional)"
-              />
-              <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                <input
-                  type="checkbox"
-                  checked={Boolean(serviceForm.active)}
-                  onChange={(e) => setServiceForm((prev) => ({ ...prev, active: e.target.checked }))}
-                  className="h-4 w-4 rounded accent-brand-500"
-                />
-                <div>
-                  <span className="text-sm font-semibold text-slate-700">Servicio activo</span>
-                  <p className="text-xs text-gray-400">Visible en la página de servicios</p>
-                </div>
-              </label>
-              <div className="flex gap-3">
-                <button
-                  className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600 flex items-center justify-center gap-2"
-                  type="submit"
-                >
-                  <Save size={17} /> {editingServiceId ? 'Actualizar Servicio' : 'Guardar Servicio'}
-                </button>
-                {editingServiceId && (
-                  <button
-                    className="rounded-lg border border-gray-300 px-4 py-3 font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
-                    type="button"
-                    onClick={cancelEditService}
-                  >
-                    <X size={17} /> Cancelar
-                  </button>
-                )}
-              </div>
-            </form>
-          </section>
-
-          {/* Lista de servicios */}
-          <section className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h3 className="font-heading text-xl font-bold mb-4">Servicios ({services.length})</h3>
-            {services.length === 0 ? (
-              <p className="text-sm text-gray-500">Aún no hay servicios. Crea el primero con el formulario.</p>
-            ) : (
-              <div className="space-y-3 max-h-[480px] overflow-y-auto">
-                {services.map((s) => (
-                  <div key={s.id} className="flex items-start justify-between rounded-lg border p-3 hover:bg-gray-50">
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-sm">{s.name}</p>
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {s.active ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </div>
-
-                      {s.description && (
-                        <p className="text-xs text-gray-400 mt-1 line-clamp-1">{s.description}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 ml-3 shrink-0">
-                      <button
-                        onClick={() => toggleServiceActive(s)}
-                        className={`rounded-lg border px-2 py-1 text-xs font-bold transition ${
-                          s.active
-                            ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
-                            : 'border-green-300 text-green-700 hover:bg-green-50'
-                        }`}
-                        type="button"
-                      >
-                        {s.active ? 'Desactivar' : 'Activar'}
-                      </button>
-                      <button
-                        onClick={() => startEditService(s)}
-                        className="text-blue-500 hover:text-blue-700"
-                        type="button"
-                        title="Editar"
-                      >
-                        <Pencil size={18} />
-                      </button>
-                      <button
-                        onClick={() => deleteService(s.id)}
-                        className="text-red-500 hover:text-red-700"
-                        type="button"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-      )}
-
-      {/* BLOG Tab */}
-      {tab === 'articles' && (
-        <div className="grid gap-8 lg:grid-cols-2">
-          <section
-            ref={formRef}
-            className={`rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 ${
-              editingArticleId ? 'border-blue-400 ring-2 ring-blue-200' : ''
-            }`}
-          >
-            <h3 className="font-heading text-xl font-bold mb-4">
-              {editingArticleId ? 'Editar Noticia' : 'Crear Noticia'}
-            </h3>
-            <form className="space-y-4" onSubmit={submitArticle}>
-              <input
-                className="w-full rounded-lg border p-3"
-                placeholder="Título"
-                value={articleForm.title}
-                onChange={(e) => {
-                  const title = e.target.value;
-                  setArticleForm((prev) => ({
-                    ...prev,
-                    title,
-                    slug: editingArticleId ? prev.slug : toSlug(title),
-                  }));
-                }}
-                required
-              />
-              <input
-                type="url"
-                className="w-full rounded-lg border p-3 text-sm"
-                placeholder="URL externa (opcional, ej: https://fuente.com/articulo)"
-                value={articleForm.external_url}
-                onChange={(e) => setArticleForm((prev) => ({ ...prev, external_url: e.target.value }))}
-              />
-              <textarea
-                className="w-full rounded-lg border p-3"
-                placeholder="Extracto"
-                rows={2}
-                value={articleForm.excerpt}
-                onChange={(e) => setArticleForm((prev) => ({ ...prev, excerpt: e.target.value }))}
-              />
-              <textarea
-                className="w-full rounded-lg border p-3"
-                placeholder="Contenido completo"
-                rows={5}
-                value={articleForm.content}
-                onChange={(e) => setArticleForm((prev) => ({ ...prev, content: e.target.value }))}
-                required
-              />
-              <ImageUpload
-                value={articleForm.image_url}
-                onChange={(url) => setArticleForm((prev) => ({ ...prev, image_url: url }))}
-                label="Imagen de portada"
-              />
-              <div className="flex gap-3">
-                <button className="w-full rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600 flex items-center justify-center gap-2" type="submit">
-                  <Save size={17} /> {editingArticleId ? 'Actualizar Noticia' : 'Guardar Noticia'}
-                </button>
-                {editingArticleId && (
-                  <button
-                    className="rounded-lg border border-gray-300 px-4 py-3 font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
-                    type="button"
-                    onClick={cancelEditArticle}
-                  >
-                    <X size={17} /> Cancelar
-                  </button>
-                )}
-              </div>
-            </form>
-          </section>
-
-          <section className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h3 className="font-heading text-xl font-bold mb-4">BLOG ({articles.length})</h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {articles.map((art) => (
-                <div key={art.id} className="flex items-start justify-between rounded-lg border p-3 hover:bg-gray-50">
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-sm">{art.title}</p>
-                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        art.published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {art.published ? 'Publicado' : 'Borrador'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">{new Date(art.created_at).toLocaleDateString('es-MX')}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => toggleArticlePublished(art)}
-                      className={`rounded-lg border px-2 py-1 text-xs font-bold transition ${
-                        art.published
-                          ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
-                          : 'border-green-300 text-green-700 hover:bg-green-50'
-                      }`}
-                      type="button"
-                    >
-                      {art.published ? 'Ocultar' : 'Publicar'}
-                    </button>
-                    <button
-                      onClick={() => startEditArticle(art)}
-                      className="text-blue-500 hover:text-blue-700"
-                      type="button"
-                      title="Editar"
-                    >
-                      <Pencil size={18} />
-                    </button>
-                    <button
-                      onClick={() => deleteArticle(art.id)}
-                      className="text-red-500 hover:text-red-700"
-                      type="button"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+        {/* Usuario */}
+        <div className="shrink-0 border-b border-white/10 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white">
+              <User size={16} />
             </div>
-          </section>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-white font-heading">Administrador</p>
+              <p className="text-[11px] text-slate-400">Super Admin</p>
+            </div>
+          </div>
         </div>
-      )}
-    </section>
+
+        {/* Nav - scrollable, takes remaining space */}
+        <nav className="flex-1 overflow-y-auto px-3 py-3">
+          <p className="mb-2 px-2 text-[9px] font-bold uppercase tracking-widest text-slate-600">Menu</p>
+          {navItems.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all font-heading font-semibold ${
+                tab === id
+                  ? 'bg-brand-500 text-white shadow-md shadow-brand-900/40'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Sincronizar Tokko - siempre visible */}
+        <div className="shrink-0 border-t border-white/10 px-3 py-3">
+          <p className="mb-1.5 px-1 text-[9px] font-bold uppercase tracking-widest text-slate-600">Tokko Broker</p>
+          <button
+            type="button"
+            onClick={syncTokko}
+            disabled={syncing}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-50 font-heading"
+          >
+            <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Sincronizando...' : 'Sincronizar Tokko'}
+          </button>
+          {syncMsg && (
+            <p className="mt-1.5 text-center text-[10px] leading-snug text-slate-500">{syncMsg}</p>
+          )}
+        </div>
+
+        {/* Logout - siempre visible */}
+        <div className="shrink-0 border-t border-white/10 px-3 py-3">
+          <button
+            onClick={logout}
+            type="button"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600/20 px-3 py-2.5 text-sm font-bold text-red-400 transition hover:bg-red-600 hover:text-white font-heading"
+          >
+            <LogOut size={15} />
+            Cerrar sesion
+          </button>
+        </div>
+      </aside>
+
+      {/* CONTENIDO PRINCIPAL */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+
+        {/* Topbar */}
+        <header className="shrink-0 flex items-center justify-between border-b border-gray-200 bg-white px-8 py-4 shadow-sm">
+          <div>
+            <h1 className="font-heading text-xl font-black text-slate-900">{tabLabels[tab]}</h1>
+            <p className="mt-0.5 text-xs text-granite capitalize">
+              {new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+            <span className="text-xs font-semibold text-granite font-heading">Sistema activo</span>
+          </div>
+        </header>
+
+        {/* Area de contenido con scroll */}
+        <main className="flex-1 overflow-y-auto p-8">
+
+          {/* LEADS CRM */}
+          {tab === 'leads' && (
+            <div className="space-y-5">
+              {/* Filtros + acciones */}
+              <div className="flex flex-wrap items-center gap-3">
+                {[
+                  { value: '',           label: 'Todos' },
+                  { value: 'new',        label: 'Nuevos' },
+                  { value: 'contacted',  label: 'Contactados' },
+                  { value: 'closed',     label: 'Cerrados' },
+                  { value: 'discarded',  label: 'Descartados' },
+                ].map(({ value, label }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => { setLeadsStatusFilter(value); loadLeads(value); }}
+                    className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${leadsStatusFilter === value ? 'bg-brand-500 text-white shadow-sm' : 'border border-gray-200 bg-white text-slate-500 hover:text-slate-800'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => loadLeads(leadsStatusFilter)}
+                  className="ml-auto flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 transition"
+                >
+                  <RefreshCw size={14} />
+                  Actualizar
+                </button>
+              </div>
+
+              {/* Tabla */}
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                {leadsLoading ? (
+                  <div className="p-10 text-center text-sm text-gray-400">Cargando leads...</div>
+                ) : leads.length === 0 ? (
+                  <div className="p-10 text-center text-sm text-gray-400">No hay leads{leadsStatusFilter ? ` con estado "${leadsStatusFilter}"` : ''} todavía.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                          <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Nombre</th>
+                          <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Teléfono</th>
+                          <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Servicio / Propiedad</th>
+                          <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Mensaje</th>
+                          <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Fecha</th>
+                          <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-500">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {leads.map((lead) => (
+                          <tr key={lead.id} className="hover:bg-gray-50/60 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-arsenic">{lead.name}</div>
+                              <div className="text-xs text-granite">{lead.email || '—'}</div>
+                            </td>
+                            <td className="px-4 py-3 text-arsenic">{lead.phone || '—'}</td>
+                            <td className="px-4 py-3">
+                              {lead.service_name
+                                ? <span className="inline-block rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">{lead.service_name}</span>
+                                : lead.property_id
+                                  ? <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Propiedad #{lead.property_id}</span>
+                                  : <span className="text-gray-400">—</span>
+                              }
+                            </td>
+                            <td className="max-w-xs px-4 py-3">
+                              <p className="line-clamp-2 text-xs text-gray-500">{lead.message || '—'}</p>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-xs text-granite">
+                              {new Date(lead.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+                            </td>
+                            <td className="px-4 py-3">
+                              <select
+                                value={lead.status || 'new'}
+                                onChange={(e) => updateLeadStatus(lead.id, e.target.value)}
+                                className={`rounded-lg border px-2 py-1 text-xs font-semibold transition focus:outline-none cursor-pointer ${
+                                  lead.status === 'new'       ? 'border-blue-200 bg-blue-50 text-blue-700' :
+                                  lead.status === 'contacted' ? 'border-yellow-200 bg-yellow-50 text-yellow-700' :
+                                  lead.status === 'closed'    ? 'border-green-200 bg-green-50 text-green-700' :
+                                                                'border-gray-200 bg-gray-50 text-gray-500'
+                                }`}
+                              >
+                                <option value="new">Nuevo</option>
+                                <option value="contacted">Contactado</option>
+                                <option value="closed">Cerrado</option>
+                                <option value="discarded">Descartado</option>
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* METRICAS */}
+          {tab === 'metrics' && (
+            <div className="space-y-6">
+
+              {/* Propiedades publicas (datos reales de Tokko) */}
+              <div>
+                <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-granite font-heading">Propiedades publicadas</p>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <MetricCard title="En el portal" value={metrics?.propStats?.total_public || 0} icon={Home} color="brand" />
+                  <MetricCard title="En venta" value={metrics?.propStats?.for_sale || 0} icon={Tag} color="amber" />
+                  <MetricCard title="En renta" value={metrics?.propStats?.for_rent || 0} icon={Building2} color="blue" />
+                  <MetricCard title="Desarrollos" value={metrics?.totalDevelopments || 0} icon={Building2} color="slate" />
+                </div>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-3">
+                {/* Propiedades por tipo */}
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-5 flex items-center gap-2 border-b border-gray-100 pb-4">
+                    <Building2 size={17} className="text-brand-500" />
+                    <h3 className="font-heading text-base font-bold text-slate-900">Por tipo de propiedad</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {(metrics?.propByType || []).map((item) => {
+                      const max = Math.max(...(metrics?.propByType || []).map((x) => Number(x.total)), 1);
+                      const pct = Math.round((Number(item.total) / max) * 100);
+                      return (
+                        <div key={item.name}>
+                          <div className="mb-1 flex items-center justify-between">
+                            <span className="text-sm font-medium text-arsenic">{item.name}</span>
+                            <span className="text-sm font-black text-brand-600">{item.total}</span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                            <div className="h-1.5 rounded-full bg-brand-500 transition-all duration-700" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {(metrics?.propByType || []).length === 0 && (
+                      <p className="text-sm text-granite">Sin datos aun.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-5 flex items-center gap-2 border-b border-gray-100 pb-4">
+                    <TrendingUp size={17} className="text-brand-500" />
+                    <h3 className="font-heading text-base font-bold text-slate-900">Leads por Servicio</h3>
+                  </div>
+                  <div className="space-y-4">
+                    {(metrics?.byService || []).map((item) => {
+                      const max = Math.max(...(metrics?.byService || []).map((x) => x.total), 1);
+                      const pct = Math.round((item.total / max) * 100);
+                      return (
+                        <div key={item.name}>
+                          <div className="mb-1.5 flex items-center justify-between">
+                            <span className="text-sm font-medium text-arsenic">{item.name}</span>
+                            <span className="text-sm font-black text-brand-600">{item.total}</span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                            <div className="h-1.5 rounded-full bg-brand-500 transition-all duration-700" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {(metrics?.byService || []).length === 0 && (
+                      <p className="text-sm text-granite">Sin datos aun.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-5 flex items-center gap-2 border-b border-gray-100 pb-4">
+                    <Clock size={17} className="text-brand-500" />
+                    <h3 className="font-heading text-base font-bold text-slate-900">Ultimos Leads</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {(metrics?.latest || []).map((lead) => (
+                      <div key={lead.id} className="flex items-center gap-3 rounded-xl bg-gray-50 px-3 py-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-black text-brand-700 font-heading">
+                          {(lead.name || '?')[0].toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-arsenic">{lead.name}</p>
+                          <p className="text-xs text-granite">{new Date(lead.created_at).toLocaleString('es-MX')}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {(metrics?.latest || []).length === 0 && (
+                      <p className="text-sm text-granite">Sin leads recientes.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* NOSOTROS */}
+          {tab === 'about' && (
+            <div className="max-w-3xl space-y-6">
+
+              {/* Hero */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Users2 size={16} className="text-brand-500" />
+                  Descripcion e imagen principal
+                </h3>
+                <div className="space-y-4">
+                  <Field label="Parrafo de descripcion">
+                    <textarea
+                      className={INPUT}
+                      rows={4}
+                      value={aboutHeroDesc}
+                      onChange={(e) => setAboutHeroDesc(e.target.value)}
+                      placeholder="Describe la empresa..."
+                    />
+                  </Field>
+                  <ImageUpload value={aboutHeroImage} onChange={setAboutHeroImage} label="Imagen del hero" />
+                  <button
+                    type="button"
+                    disabled={saving === 'hero'}
+                    onClick={async () => {
+                      setSaving('hero');
+                      await Promise.all([
+                        api.put('/site-content/about_description', { value: aboutHeroDesc }),
+                        api.put('/site-content/about_hero_image', { value: aboutHeroImage }),
+                      ]);
+                      setSaving('');
+                    }}
+                    className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                  >
+                    <Save size={14} />
+                    {saving === 'hero' ? 'Guardando...' : 'Guardar descripcion'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Mision y Vision */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Target size={16} className="text-brand-500" />
+                  Misión y Visión
+                </h3>
+                <div className="space-y-4">
+                  <Field label="Título de la Misión">
+                    <input
+                      className={INPUT}
+                      placeholder="Ej: Ser el puente entre las personas y su hogar ideal."
+                      value={aboutMission.title}
+                      onChange={(e) => setAboutMission(prev => ({ ...prev, title: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label="Descripción de la Misión">
+                    <textarea
+                      className={INPUT}
+                      rows={3}
+                      placeholder="Describe la misión de la empresa..."
+                      value={aboutMission.desc}
+                      onChange={(e) => setAboutMission(prev => ({ ...prev, desc: e.target.value }))}
+                    />
+                  </Field>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={saving === 'mission'}
+                      onClick={() => saveKey('about_mission', JSON.stringify(aboutMission), 'mission')}
+                      className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                    >
+                      <Save size={14} />
+                      {saving === 'mission' ? 'Guardando...' : 'Guardar misión'}
+                    </button>
+                  </div>
+                  <Field label="Título de la Visión">
+                    <input
+                      className={INPUT}
+                      placeholder="Ej: Ser la inmobiliaria de referencia en Querétaro."
+                      value={aboutVision.title}
+                      onChange={(e) => setAboutVision(prev => ({ ...prev, title: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label="Descripción de la Visión">
+                    <textarea
+                      className={INPUT}
+                      rows={3}
+                      placeholder="Describe la visión de la empresa..."
+                      value={aboutVision.desc}
+                      onChange={(e) => setAboutVision(prev => ({ ...prev, desc: e.target.value }))}
+                    />
+                  </Field>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={saving === 'vision'}
+                      onClick={() => saveKey('about_vision', JSON.stringify(aboutVision), 'vision')}
+                      className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                    >
+                      <Save size={14} />
+                      {saving === 'vision' ? 'Guardando...' : 'Guardar visión'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Estadisticas */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <TrendingUp size={16} className="text-brand-500" />
+                  Estadisticas de la empresa
+                </h3>
+                <div className="space-y-2">
+                  {aboutFacts.map((fact, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input
+                        className="w-28 shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-arsenic placeholder:text-gray-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 transition-all font-body"
+                        placeholder="Numero"
+                        value={fact.number}
+                        onChange={(e) => setAboutFacts(prev => prev.map((f, idx) => idx === i ? { ...f, number: e.target.value } : f))}
+                      />
+                      <input
+                        className="flex-1 min-w-0 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-arsenic placeholder:text-gray-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 transition-all font-body"
+                        placeholder="Descripcion (ej: Años de trayectoria)"
+                        value={fact.label}
+                        onChange={(e) => setAboutFacts(prev => prev.map((f, idx) => idx === i ? { ...f, label: e.target.value } : f))}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAboutFacts(prev => prev.filter((_, idx) => idx !== i))}
+                        className="shrink-0 rounded-lg p-2 text-granite hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setAboutFacts(prev => [...prev, { number: '', label: '' }])}
+                      className="flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-granite hover:border-brand-400 hover:text-brand-500 font-heading"
+                    >
+                      <Plus size={14} /> Agregar estadistica
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving === 'facts'}
+                      onClick={() => saveKey('about_facts', JSON.stringify(aboutFacts), 'facts')}
+                      className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                    >
+                      <Save size={14} />
+                      {saving === 'facts' ? 'Guardando...' : 'Guardar estadisticas'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Equipo */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <User size={16} className="text-brand-500" />
+                  Equipo
+                </h3>
+                <div className="space-y-5">
+                  {aboutTeam.map((member, i) => (
+                    <div key={i} className="rounded-xl border border-gray-100 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-bold text-arsenic font-heading">{member.name || `Miembro ${i + 1}`}</p>
+                        <button
+                          type="button"
+                          onClick={() => setAboutTeam(prev => prev.filter((_, idx) => idx !== i))}
+                          className="rounded-lg p-1.5 text-granite hover:bg-red-50 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Nombre">
+                          <input
+                            className={INPUT}
+                            value={member.name}
+                            onChange={(e) => setAboutTeam(prev => prev.map((m, idx) => idx === i ? { ...m, name: e.target.value } : m))}
+                            placeholder="Nombre completo"
+                          />
+                        </Field>
+                        <Field label="Cargo">
+                          <input
+                            className={INPUT}
+                            value={member.role}
+                            onChange={(e) => setAboutTeam(prev => prev.map((m, idx) => idx === i ? { ...m, role: e.target.value } : m))}
+                            placeholder="Director, Asesor, etc."
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Descripcion">
+                        <textarea
+                          className={INPUT}
+                          rows={2}
+                          value={member.bio}
+                          onChange={(e) => setAboutTeam(prev => prev.map((m, idx) => idx === i ? { ...m, bio: e.target.value } : m))}
+                          placeholder="Breve descripcion del miembro..."
+                        />
+                      </Field>
+                      <ImageUpload
+                        value={member.photo}
+                        onChange={(url) => setAboutTeam(prev => prev.map((m, idx) => idx === i ? { ...m, photo: url } : m))}
+                        label="Foto"
+                        fileOnly
+                      />
+                    </div>
+                  ))}
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAboutTeam(prev => [...prev, { name: '', role: '', bio: '', photo: '' }])}
+                      className="flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-granite hover:border-brand-400 hover:text-brand-500 font-heading"
+                    >
+                      <Plus size={14} /> Agregar miembro
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving === 'team'}
+                      onClick={() => saveKey('about_team', JSON.stringify(aboutTeam), 'team')}
+                      className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                    >
+                      <Save size={14} />
+                      {saving === 'team' ? 'Guardando...' : 'Guardar equipo'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Historia */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Clock size={16} className="text-brand-500" />
+                  Historia de la empresa
+                </h3>
+                <div className="space-y-2">
+                  {aboutTimeline.map((event, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input
+                        className="w-24 shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-arsenic placeholder:text-gray-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 transition-all font-body"
+                        placeholder="Año"
+                        value={event.year}
+                        onChange={(e) => setAboutTimeline(prev => prev.map((ev, idx) => idx === i ? { ...ev, year: e.target.value } : ev))}
+                      />
+                      <input
+                        className="flex-1 min-w-0 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-arsenic placeholder:text-gray-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 transition-all font-body"
+                        placeholder="Descripcion del hito..."
+                        value={event.desc}
+                        onChange={(e) => setAboutTimeline(prev => prev.map((ev, idx) => idx === i ? { ...ev, desc: e.target.value } : ev))}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAboutTimeline(prev => prev.filter((_, idx) => idx !== i))}
+                        className="shrink-0 rounded-lg p-2 text-granite hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setAboutTimeline(prev => [...prev, { year: '', desc: '' }])}
+                      className="flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-granite hover:border-brand-400 hover:text-brand-500 font-heading"
+                    >
+                      <Plus size={14} /> Agregar evento
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving === 'timeline'}
+                      onClick={() => saveKey('about_timeline', JSON.stringify(aboutTimeline), 'timeline')}
+                      className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                    >
+                      <Save size={14} />
+                      {saving === 'timeline' ? 'Guardando...' : 'Guardar historia'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Diferenciadores */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <CheckCircle size={16} className="text-brand-500" />
+                  Diferenciadores
+                </h3>
+                <div className="space-y-2">
+                  {aboutDifferentiators.map((item, i) => (
+                    <div key={i} className="rounded-xl border border-gray-100 p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        {/* Icon picker */}
+                        <div className="relative shrink-0">
+                          <select
+                            value={item.icon || 'CheckCircle'}
+                            onChange={(e) => setAboutDifferentiators(prev => prev.map((d, idx) => idx === i ? { ...d, icon: e.target.value } : d))}
+                            className="appearance-none rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-xs text-arsenic focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 font-body cursor-pointer"
+                          >
+                            {DIFF_ICON_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
+                          </select>
+                          {(() => { const Ic = DIFF_ICONS[item.icon] || DIFF_ICONS.CheckCircle; return <Ic size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-500" />; })()}
+                        </div>
+                        <input
+                          className={`${INPUT} flex-1 min-w-0 font-semibold`}
+                          placeholder="Titulo del diferenciador"
+                          value={item.title}
+                          onChange={(e) => setAboutDifferentiators(prev => prev.map((d, idx) => idx === i ? { ...d, title: e.target.value } : d))}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAboutDifferentiators(prev => prev.filter((_, idx) => idx !== i))}
+                          className="shrink-0 rounded-lg p-2 text-granite hover:bg-red-50 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <textarea
+                        className={INPUT}
+                        rows={2}
+                        placeholder="Descripcion..."
+                        value={item.desc}
+                        onChange={(e) => setAboutDifferentiators(prev => prev.map((d, idx) => idx === i ? { ...d, desc: e.target.value } : d))}
+                      />
+                    </div>
+                  ))}
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setAboutDifferentiators(prev => [...prev, { icon: 'CheckCircle', title: '', desc: '' }])}
+                      className="flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-granite hover:border-brand-400 hover:text-brand-500 font-heading"
+                    >
+                      <Plus size={14} /> Agregar diferenciador
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving === 'diff'}
+                      onClick={() => saveKey('about_differentiators', JSON.stringify(aboutDifferentiators), 'diff')}
+                      className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                    >
+                      <Save size={14} />
+                      {saving === 'diff' ? 'Guardando...' : 'Guardar diferenciadores'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Brochure */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Download size={16} className="text-brand-500" />
+                  Brochure corporativo
+                </h3>
+                <div className="space-y-4">
+                  <Field label="URL del brochure (PDF)">
+                    <input
+                      className={INPUT}
+                      placeholder="https://... o sube un archivo abajo"
+                      value={aboutBrochure}
+                      onChange={(e) => setAboutBrochure(e.target.value)}
+                    />
+                  </Field>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm text-granite hover:border-brand-400 hover:text-brand-500 font-heading">
+                      <Upload size={14} />
+                      Subir PDF
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          uploadDoc(file, setAboutBrochure);
+                        }}
+                      />
+                    </label>
+                    {aboutBrochure && (
+                      <a href={aboutBrochure} target="_blank" rel="noopener noreferrer"
+                        className="text-sm text-brand-500 underline truncate max-w-xs">
+                        Ver brochure actual
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={saving === 'brochure'}
+                      onClick={() => saveKey('about_brochure', aboutBrochure, 'brochure')}
+                      className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                    >
+                      <Save size={14} />
+                      {saving === 'brochure' ? 'Guardando...' : 'Guardar brochure'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* SERVICIOS */}
+          {tab === 'services' && (
+            <div className="grid gap-8 lg:grid-cols-2">
+              <section
+                ref={serviceFormRef}
+                className={`rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 ${
+                  editingServiceId ? 'border-brand-400 ring-2 ring-brand-100' : 'border-gray-200'
+                }`}
+              >
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Wrench size={16} className="text-brand-500" />
+                  {editingServiceId ? 'Editar Servicio' : 'Nuevo Servicio'}
+                </h3>
+                <form className="space-y-4" onSubmit={submitService}>
+                  <Field label="Nombre del servicio">
+                    <input
+                      className={INPUT}
+                      placeholder="Ej: Venta de propiedades"
+                      value={serviceForm.name}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        setServiceForm((prev) => ({
+                          ...prev, name,
+                          slug: editingServiceId ? prev.slug : toSlug(name),
+                        }));
+                      }}
+                      required
+                    />
+                  </Field>
+                  <Field label="Slug (URL)">
+                    <input
+                      className={INPUT}
+                      placeholder="venta-de-propiedades"
+                      value={serviceForm.slug}
+                      onChange={(e) => setServiceForm((prev) => ({ ...prev, slug: e.target.value }))}
+                      required
+                    />
+                  </Field>
+                  <Field label="Descripcion">
+                    <textarea
+                      className={INPUT}
+                      placeholder="Describe brevemente el servicio..."
+                      rows={3}
+                      value={serviceForm.description}
+                      onChange={(e) => setServiceForm((prev) => ({ ...prev, description: e.target.value }))}
+                    />
+                  </Field>
+                  <ImageUpload
+                    value={serviceForm.image_url}
+                    onChange={(url) => setServiceForm((prev) => ({ ...prev, image_url: url }))}
+                    label="Imagen del servicio (opcional)"
+                  />
+                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(serviceForm.active)}
+                      onChange={(e) => setServiceForm((prev) => ({ ...prev, active: e.target.checked }))}
+                      className="h-4 w-4 rounded accent-brand-500"
+                    />
+                    <div>
+                      <span className="text-sm font-semibold text-arsenic font-heading">Servicio activo</span>
+                      <p className="text-xs text-granite">Visible en la pagina de servicios</p>
+                    </div>
+                  </label>
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-600 font-heading"
+                      type="submit"
+                    >
+                      <Save size={15} />
+                      {editingServiceId ? 'Actualizar' : 'Guardar'}
+                    </button>
+                    {editingServiceId && (
+                      <button
+                        className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-granite transition hover:bg-gray-50 font-heading"
+                        type="button"
+                        onClick={cancelEditService}
+                      >
+                        <X size={15} /> Cancelar
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </section>
+
+              <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 flex items-center justify-between border-b border-gray-100 pb-4">
+                  <h3 className="font-heading text-base font-bold text-slate-900">Servicios</h3>
+                  <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-bold text-brand-700 font-heading">{services.length}</span>
+                </div>
+                {services.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-12 text-center">
+                    <Wrench size={26} className="mb-2 text-gray-300" />
+                    <p className="text-sm text-granite">Aun no hay servicios.</p>
+                  </div>
+                ) : (
+                  <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
+                    {services.map((s) => (
+                      <div key={s.id} className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 p-3.5 transition hover:border-brand-100 hover:bg-brand-50/30">
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                          {s.image_url ? (
+                            <img src={s.image_url} alt={s.name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                          ) : (
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-500">
+                              <Wrench size={17} />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-arsenic font-heading">{s.name}</p>
+                            {s.description && (
+                              <p className="mt-0.5 truncate text-xs text-granite">{s.description}</p>
+                            )}
+                            <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold font-heading ${
+                              s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {s.active ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            onClick={() => toggleServiceActive(s)}
+                            className={`rounded-lg border px-2 py-1 text-[11px] font-bold transition font-heading ${
+                              s.active ? 'border-amber-200 text-amber-700 hover:bg-amber-50' : 'border-green-200 text-green-700 hover:bg-green-50'
+                            }`}
+                            type="button"
+                          >
+                            {s.active ? 'Desactivar' : 'Activar'}
+                          </button>
+                          <button onClick={() => startEditService(s)} className="rounded-lg p-1.5 text-granite hover:bg-blue-50 hover:text-blue-600" type="button" title="Editar">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => deleteService(s.id)} className="rounded-lg p-1.5 text-granite hover:bg-red-50 hover:text-red-600" type="button" title="Eliminar">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {/* BLOG */}
+          {tab === 'articles' && (
+            <div className="grid gap-8 lg:grid-cols-2">
+              <section
+                ref={formRef}
+                className={`rounded-2xl border bg-white p-6 shadow-sm transition-all duration-300 ${
+                  editingArticleId ? 'border-brand-400 ring-2 ring-brand-100' : 'border-gray-200'
+                }`}
+              >
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Newspaper size={16} className="text-brand-500" />
+                  {editingArticleId ? 'Editar Noticia' : 'Nueva Noticia'}
+                </h3>
+                <form className="space-y-4" onSubmit={submitArticle}>
+                  <Field label="Titulo">
+                    <input
+                      className={INPUT}
+                      placeholder="Titulo de la noticia"
+                      value={articleForm.title}
+                      onChange={(e) => {
+                        const title = e.target.value;
+                        setArticleForm((prev) => ({
+                          ...prev, title,
+                          slug: editingArticleId ? prev.slug : toSlug(title),
+                        }));
+                      }}
+                      required
+                    />
+                  </Field>
+                  <Field label="URL externa (opcional)">
+                    <input
+                      type="url"
+                      className={INPUT}
+                      placeholder="https://fuente.com/articulo"
+                      value={articleForm.external_url}
+                      onChange={(e) => setArticleForm((prev) => ({ ...prev, external_url: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label="Extracto">
+                    <textarea
+                      className={INPUT}
+                      placeholder="Resumen breve del articulo..."
+                      rows={2}
+                      value={articleForm.excerpt}
+                      onChange={(e) => setArticleForm((prev) => ({ ...prev, excerpt: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label="Contenido completo">
+                    <textarea
+                      className={INPUT}
+                      placeholder="Escribe el articulo aqui..."
+                      rows={5}
+                      value={articleForm.content}
+                      onChange={(e) => setArticleForm((prev) => ({ ...prev, content: e.target.value }))}
+                      required
+                    />
+                  </Field>
+                  <ImageUpload
+                    value={articleForm.image_url}
+                    onChange={(url) => setArticleForm((prev) => ({ ...prev, image_url: url }))}
+                    label="Imagen de portada"
+                  />
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-600 font-heading"
+                      type="submit"
+                    >
+                      <Save size={15} />
+                      {editingArticleId ? 'Actualizar' : 'Publicar'}
+                    </button>
+                    {editingArticleId && (
+                      <button
+                        className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-granite transition hover:bg-gray-50 font-heading"
+                        type="button"
+                        onClick={cancelEditArticle}
+                      >
+                        <X size={15} /> Cancelar
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </section>
+
+              <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 flex items-center justify-between border-b border-gray-100 pb-4">
+                  <h3 className="font-heading text-base font-bold text-slate-900">Articulos</h3>
+                  <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-bold text-brand-700 font-heading">{articles.length}</span>
+                </div>
+                {articles.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-12 text-center">
+                    <Newspaper size={26} className="mb-2 text-gray-300" />
+                    <p className="text-sm text-granite">Aun no hay articulos.</p>
+                  </div>
+                ) : (
+                  <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
+                    {articles.map((art) => (
+                      <div key={art.id} className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 p-3.5 transition hover:border-brand-100 hover:bg-brand-50/30">
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                          {art.image_url ? (
+                            <img src={art.image_url} alt={art.title} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                          ) : (
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+                              <Newspaper size={17} />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-arsenic font-heading">{art.title}</p>
+                            <p className="mt-0.5 text-xs text-granite">{new Date(art.created_at).toLocaleDateString('es-MX')}</p>
+                            <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold font-heading ${
+                              art.published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {art.published ? 'Publicado' : 'Borrador'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            onClick={() => toggleArticlePublished(art)}
+                            className={`rounded-lg border px-2 py-1 text-[11px] font-bold transition font-heading ${
+                              art.published ? 'border-amber-200 text-amber-700 hover:bg-amber-50' : 'border-green-200 text-green-700 hover:bg-green-50'
+                            }`}
+                            type="button"
+                          >
+                            {art.published ? 'Ocultar' : 'Publicar'}
+                          </button>
+                          <button onClick={() => startEditArticle(art)} className="rounded-lg p-1.5 text-granite hover:bg-blue-50 hover:text-blue-600" type="button" title="Editar">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => deleteArticle(art.id)} className="rounded-lg p-1.5 text-granite hover:bg-red-50 hover:text-red-600" type="button" title="Eliminar">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {/* LEGAL */}
+          {tab === 'legal' && (
+            <div className="max-w-2xl space-y-6">
+
+              {/* Aviso de privacidad */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Shield size={16} className="text-brand-500" />
+                  Aviso de Privacidad
+                </h3>
+                <div className="space-y-4">
+                  <Field label="URL del aviso (enlace externo o al archivo)">
+                    <input
+                      type="url"
+                      className={INPUT}
+                      placeholder="https://ejemplo.com/aviso-de-privacidad"
+                      value={legalPrivacy}
+                      onChange={(e) => setLegalPrivacy(e.target.value)}
+                    />
+                  </Field>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-granite font-heading">O sube un PDF:</span>
+                    <label className="cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-granite transition hover:border-brand-400 hover:text-brand-500 font-heading">
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        className="sr-only"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadDoc(f, setLegalPrivacy);
+                        }}
+                      />
+                      {saving === 'doc' ? 'Subiendo...' : 'Seleccionar PDF'}
+                    </label>
+                  </div>
+                  {legalPrivacy && (
+                    <div className="flex items-center gap-2 rounded-xl bg-brand-50 px-4 py-2.5">
+                      <FileText size={14} className="shrink-0 text-brand-500" />
+                      <a href={legalPrivacy} target="_blank" rel="noreferrer" className="truncate text-sm text-brand-600 underline underline-offset-2 font-heading">
+                        {legalPrivacy}
+                      </a>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    disabled={saving === 'privacy'}
+                    onClick={() => saveKey('legal_privacy', legalPrivacy, 'privacy')}
+                    className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                  >
+                    <Save size={14} />
+                    {saving === 'privacy' ? 'Guardando...' : 'Guardar aviso de privacidad'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Terminos y condiciones */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <FileText size={16} className="text-brand-500" />
+                  Terminos y Condiciones
+                </h3>
+                <div className="space-y-4">
+                  <Field label="URL de terminos (enlace externo o al archivo)">
+                    <input
+                      type="url"
+                      className={INPUT}
+                      placeholder="https://ejemplo.com/terminos"
+                      value={legalTerms}
+                      onChange={(e) => setLegalTerms(e.target.value)}
+                    />
+                  </Field>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-granite font-heading">O sube un PDF:</span>
+                    <label className="cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-granite transition hover:border-brand-400 hover:text-brand-500 font-heading">
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        className="sr-only"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadDoc(f, setLegalTerms);
+                        }}
+                      />
+                      {saving === 'doc' ? 'Subiendo...' : 'Seleccionar PDF'}
+                    </label>
+                  </div>
+                  {legalTerms && (
+                    <div className="flex items-center gap-2 rounded-xl bg-brand-50 px-4 py-2.5">
+                      <FileText size={14} className="shrink-0 text-brand-500" />
+                      <a href={legalTerms} target="_blank" rel="noreferrer" className="truncate text-sm text-brand-600 underline underline-offset-2 font-heading">
+                        {legalTerms}
+                      </a>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    disabled={saving === 'terms'}
+                    onClick={() => saveKey('legal_terms', legalTerms, 'terms')}
+                    className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                  >
+                    <Save size={14} />
+                    {saving === 'terms' ? 'Guardando...' : 'Guardar terminos'}
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+        </main>
+      </div>
+    </div>
   );
 }
 
-function MetricCard({ title, value, icon: Icon }) {
+function MetricCard({ title, value, icon: Icon, color = 'brand' }) {
+  const colors = {
+    brand: { bg: 'bg-brand-50', icon: 'text-brand-500', bar: 'bg-brand-500', num: 'text-brand-700' },
+    amber: { bg: 'bg-amber-50', icon: 'text-amber-500', bar: 'bg-amber-400', num: 'text-amber-700' },
+    blue:  { bg: 'bg-blue-50',  icon: 'text-blue-500',  bar: 'bg-blue-500',  num: 'text-blue-700'  },
+    green: { bg: 'bg-green-50', icon: 'text-green-600', bar: 'bg-green-500', num: 'text-green-700' },
+    slate: { bg: 'bg-slate-100', icon: 'text-slate-500', bar: 'bg-slate-400', num: 'text-slate-700' },
+  };
+  const c = colors[color] || colors.brand;
   return (
-    <article className="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-semibold text-gray-500">{title}</p>
-          <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
-        </div>
-        <span className="text-brand-500"><Icon size={28} /></span>
+    <article className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className={`absolute right-4 top-4 rounded-xl ${c.bg} p-2`}>
+        <Icon size={19} className={c.icon} />
       </div>
+      <p className="text-[11px] font-bold uppercase tracking-widest text-granite font-heading">{title}</p>
+      <p className={`mt-2 text-3xl font-black font-heading ${c.num}`}>{value}</p>
+      <div className={`mt-4 h-1 w-2/3 rounded-full ${c.bar} opacity-25`} />
     </article>
   );
 }
 
-function StatusBadge({ status }) {
-  const map = {
-    new: 'bg-orange-100 text-orange-700',
-    contacted: 'bg-blue-100 text-blue-700',
-    closed: 'bg-green-100 text-green-700',
-  };
-  const labels = { new: 'Nuevo', contacted: 'Contactado', closed: 'Cerrado' };
+function Field({ label, children }) {
   return (
-    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${map[status] || 'bg-gray-100 text-gray-700'}`}>
-      {labels[status] || status}
-    </span>
-  );
-}
-
-function DetailRow({ icon: Icon, label, value }) {
-  return (
-    <div className="flex items-start gap-3">
-      <span className="w-6 shrink-0 text-gray-400 mt-0.5"><Icon size={18} /></span>
-      <div>
-        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">{label}</p>
-        <p className="text-sm text-slate-800 font-medium">{value}</p>
-      </div>
+    <div className="space-y-1.5">
+      <label className="block text-[11px] font-bold uppercase tracking-widest text-granite font-heading">{label}</label>
+      {children}
     </div>
   );
 }

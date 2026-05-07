@@ -1,11 +1,25 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import {
   ArrowRight, Download, MapPin, Phone, Mail, Calendar,
   TrendingUp, Home, Users, CheckCircle2,
+  Star, Award, Handshake, Key, BarChart2, Heart, Zap, Globe, Lock, Shield,
+  CheckCircle, Users2,
 } from 'lucide-react';
 
-/* ─── Datos de la empresa ─────────────────────────────────────────── */
-const companyFacts = [
+const DIFF_ICONS = {
+  CheckCircle, CheckCircle2, Home, Users, Users2, TrendingUp,
+  Star, Award, Handshake, MapPin, Key, BarChart2, Heart, Zap, Globe, Lock, Shield, Phone,
+};
+
+function tryJson(str, fallback) {
+  try { const p = JSON.parse(str); return Array.isArray(p) ? p : fallback; }
+  catch { return fallback; }
+}
+
+/* ─── Datos de la empresa (defaults) ────────────────────────────── */
+const DEFAULT_FACTS = [
   { number: '1999',   label: 'Año de fundación' },
   { number: '+25',    label: 'Años de trayectoria' },
   { number: '500+',   label: 'Propiedades activas' },
@@ -14,8 +28,8 @@ const companyFacts = [
   { number: '3',      label: 'Oficinas en Querétaro' },
 ];
 
-/* ─── Equipo ──────────────────────────────────────────────────────── */
-const team = [
+/* ─── Equipo (defaults) ────────────────────────────────────────── */
+const DEFAULT_TEAM = [
   {
     name: 'Roberto Álvarez',
     role: 'Director General',
@@ -50,8 +64,8 @@ const team = [
   },
 ];
 
-/* ─── Hitos históricos ────────────────────────────────────────────── */
-const timeline = [
+/* ─── Hitos históricos (defaults) ─────────────────────────────── */
+const DEFAULT_TIMELINE = [
   { year: '1999', desc: 'Fundación en Querétaro con enfoque en bienes raíces residenciales.' },
   { year: '2005', desc: 'Expansión al segmento comercial y apertura de segunda oficina.' },
   { year: '2012', desc: 'Inicio de comercialización de desarrollos de alto impacto.' },
@@ -78,6 +92,46 @@ function Eyebrow({ text }) {
 }
 
 export default function AboutPage() {
+  const [description, setDescription] = useState('Más de dos décadas conectando familias y empresas con las mejores propiedades de Querétaro y el Bajío. Transparentes, comprometidos y siempre a tu lado.');
+  const [heroImage, setHeroImage] = useState('https://images.unsplash.com/photo-1497366216548-37526070297c?w=900&q=80');
+  const [companyFacts, setCompanyFacts] = useState(DEFAULT_FACTS);
+  const [team, setTeam] = useState(DEFAULT_TEAM);
+  const [timeline, setTimeline] = useState(DEFAULT_TIMELINE);
+  const [diffs, setDiffs] = useState(differentiators);
+  const [brochureUrl, setBrochureUrl] = useState('/brochure-are.pdf');
+  const [mission, setMission] = useState('Ser el puente entre las personas y el hogar que cambiará su vida.');
+  const [missionDesc, setMissionDesc] = useState('Facilitar el acceso a bienes raíces de calidad mediante asesoría profesional, personalizada e íntegra, creando experiencias satisfactorias para compradores, vendedores y arrendatarios en cada etapa del proceso.');
+  const [vision, setVision] = useState('Ser la inmobiliaria de referencia en Querétaro y el Bajío.');
+  const [visionDesc, setVisionDesc] = useState('Aspiramos a liderar el mercado regional con innovación y servicio humano, reconocidos por excelencia, tecnología y ética profesional.');
+
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL || '/backare/api';
+    axios.get(`${apiBase}/site-content`)
+      .then((res) => {
+        const d = res.data?.data || {};
+        if (d.about_description) setDescription(d.about_description);
+        if (d.about_hero_image) setHeroImage(d.about_hero_image);
+        if (d.about_facts) setCompanyFacts(tryJson(d.about_facts, DEFAULT_FACTS));
+        if (d.about_team) {
+          const t = tryJson(d.about_team, DEFAULT_TEAM);
+          // Preserve linkedin/instagram placeholders if missing
+          setTeam(t.map(m => ({ linkedin: '#', instagram: null, ...m })));
+        }
+        if (d.about_timeline) setTimeline(tryJson(d.about_timeline, DEFAULT_TIMELINE));
+        if (d.about_differentiators) setDiffs(tryJson(d.about_differentiators, differentiators));
+        if (d.about_brochure) setBrochureUrl(d.about_brochure);
+        if (d.about_mission) {
+          try { const p = JSON.parse(d.about_mission); setMission(p.title || d.about_mission); setMissionDesc(p.desc || ''); }
+          catch { setMission(d.about_mission); }
+        }
+        if (d.about_vision) {
+          try { const p = JSON.parse(d.about_vision); setVision(p.title || d.about_vision); setVisionDesc(p.desc || ''); }
+          catch { setVision(d.about_vision); }
+        }
+      })
+      .catch(() => {}); // silently use defaults
+  }, []);
+
   return (
     <div className="overflow-x-hidden bg-white">
 
@@ -97,21 +151,9 @@ export default function AboutPage() {
             </h1>
 
             <p className="mt-4 text-base text-gray-600 leading-relaxed max-w-md">
-              Más de dos décadas conectando familias y empresas con las mejores propiedades de Querétaro y el Bajío. Transparentes, comprometidos y siempre a tu lado.
+              {description}
             </p>
 
-            <div className="mt-5 flex flex-wrap gap-4 text-sm text-gray-500">
-              {[
-                { icon: Calendar, text: 'Fundada en 1999' },
-                { icon: MapPin,   text: 'Querétaro, México' },
-                { icon: Users,    text: '+1,200 clientes' },
-              ].map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-1.5">
-                  <Icon className="h-4 w-4 text-brand-500 shrink-0" />
-                  {text}
-                </div>
-              ))}
-            </div>
 
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
@@ -121,21 +163,25 @@ export default function AboutPage() {
                 Hablar con un asesor
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
               </Link>
-              <a
-                href="/brochure-are.pdf"
-                download
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-200 px-6 py-3 font-semibold text-slate-700 transition hover:border-brand-500 hover:text-brand-500"
-              >
-                <Download className="h-4 w-4" />
-                Descargar brochure
-              </a>
+              {brochureUrl && (
+                <a
+                  href={brochureUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-200 px-6 py-3 font-semibold text-slate-700 transition hover:border-brand-500 hover:text-brand-500"
+                >
+                  <Download className="h-4 w-4" />
+                  Descargar brochure
+                </a>
+              )}
             </div>
           </div>
 
           {/* Foto */}
           <div className="relative" data-aos="fade-left" data-aos-duration="700" data-aos-delay="100">
             <img
-              src="https://images.unsplash.com/photo-1497366216548-37526070297c?w=900&q=80"
+              src={heroImage}
               alt="Oficinas ARE Inmobiliaria"
               className="w-full h-[420px] object-cover rounded-2xl shadow-2xl"
             />
@@ -182,10 +228,10 @@ export default function AboutPage() {
           <div data-aos="fade-right" data-aos-duration="700">
             <Eyebrow text="Misión" />
             <h2 className="font-heading text-3xl font-black text-slate-800 mb-4 leading-tight">
-              Ser el puente entre las personas y el hogar que cambiará su vida.
+              {mission}
             </h2>
             <p className="text-gray-600 leading-relaxed text-sm">
-              Facilitar el acceso a bienes raíces de calidad mediante asesoría profesional, personalizada e íntegra, creando experiencias satisfactorias para compradores, vendedores y arrendatarios en cada etapa del proceso.
+              {missionDesc}
             </p>
           </div>
 
@@ -198,10 +244,10 @@ export default function AboutPage() {
             <div className="relative">
               <Eyebrow text="Visión" />
               <h2 className="font-heading text-2xl font-black leading-snug mb-3 text-white">
-                Ser la inmobiliaria de referencia en Querétaro y el Bajío.
+                {vision}
               </h2>
               <p className="text-sm text-brand-100 leading-relaxed">
-                Aspiramos a liderar el mercado regional con innovación y servicio humano, reconocidos por excelencia, tecnología y ética profesional.
+                {visionDesc}
               </p>
             </div>
           </div>
@@ -236,17 +282,20 @@ export default function AboutPage() {
               </h2>
 
               <div className="space-y-5">
-                {differentiators.map(({ icon: Icon, title, desc }, i) => (
-                  <div key={title} className="flex gap-4" data-aos="fade-up" data-aos-delay={i * 70}>
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50">
-                      <Icon className="h-5 w-5 text-brand-500" />
+                {diffs.map(({ icon, title, desc }, i) => {
+                  const Icon = DIFF_ICONS[icon] || CheckCircle2;
+                  return (
+                    <div key={i} className="flex gap-4" data-aos="fade-up" data-aos-delay={i * 70}>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                        <Icon className="h-5 w-5 text-brand-500" />
+                      </div>
+                      <div>
+                        <h4 className="font-heading font-bold text-slate-800 mb-0.5 text-sm">{title}</h4>
+                        <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-heading font-bold text-slate-800 mb-0.5 text-sm">{title}</h4>
-                      <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -302,15 +351,6 @@ export default function AboutPage() {
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 flex items-end justify-end gap-2 p-3 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/40 to-transparent">
-                    {linkedin && (
-                      <a href={linkedin} target="_blank" rel="noreferrer"
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-700 hover:bg-brand-500 hover:text-white transition"
-                        aria-label="LinkedIn">
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                        </svg>
-                      </a>
-                    )}
                     {instagram && (
                       <a href={instagram} target="_blank" rel="noreferrer"
                         className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-700 hover:bg-brand-500 hover:text-white transition"
@@ -364,14 +404,18 @@ export default function AboutPage() {
             </div>
 
             <div className="flex flex-col items-start gap-2 md:items-end">
-              <a
-                href="/brochure-are.pdf"
-                download
-                className="inline-flex items-center gap-2.5 rounded-xl bg-brand-500 px-7 py-4 font-semibold text-white shadow-lg shadow-brand-900/40 transition hover:bg-brand-400 whitespace-nowrap"
-              >
-                <Download className="h-5 w-5" />
-                Descargar PDF
-              </a>
+              {brochureUrl && (
+                <a
+                  href={brochureUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2.5 rounded-xl bg-brand-500 px-7 py-4 font-semibold text-white shadow-lg shadow-brand-900/40 transition hover:bg-brand-400 whitespace-nowrap"
+                >
+                  <Download className="h-5 w-5" />
+                  Descargar PDF
+                </a>
+              )}
               <p className="text-xs text-gray-600">PDF · Actualizado 2025</p>
             </div>
           </div>

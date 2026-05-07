@@ -62,8 +62,19 @@ export default function DynamicLeadForm({ service, onSuccess }) {
     <form className="space-y-3" onSubmit={handleSubmit}>
       <input className="w-full rounded-lg border p-3" placeholder="Nombre completo" value={form.name} onChange={(e) => updateField('name', e.target.value)} required />
       <input className="w-full rounded-lg border p-3" placeholder="Correo electrónico" type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} required />
-      <input className="w-full rounded-lg border p-3" placeholder="Teléfono" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} required />
-      <textarea className="w-full rounded-lg border p-3" placeholder="Mensaje (opcional)" value={form.message} onChange={(e) => updateField('message', e.target.value)} rows={3} />
+      <input
+        className="w-full rounded-lg border p-3"
+        placeholder="Teléfono / Celular (10 dígitos)"
+        type="tel"
+        inputMode="numeric"
+        maxLength={10}
+        value={form.phone}
+        onChange={(e) => updateField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+        pattern="[0-9]{10}"
+        title="Ingresa exactamente 10 dígitos sin espacios ni guiones"
+        required
+      />
+      <textarea className="w-full rounded-lg border p-3" placeholder="Mensaje (opcional)" value={form.message} onChange={(e) => updateField('message', e.target.value)} rows={3} required />
 
       {(service?.form_schema?.fields || []).map((field) => (
         <div key={field.name}>

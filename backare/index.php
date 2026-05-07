@@ -97,19 +97,20 @@ try {
         respond(200, ['success' => true, 'data' => $stmt->fetch()]);
     }
 
-    // ─── Upload de imagen ────────────────────────────────────────────────────
+    // ─── Upload de imagen / documento ─────────────────────────────────────────
     if ($path === '/upload' && $method === 'POST') {
         require_auth();
         if (empty($_FILES['image'])) {
             respond(400, ['success' => false, 'message' => 'No se recibió ningún archivo']);
         }
         $file    = $_FILES['image'];
-        $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
         if (!in_array($file['type'], $allowed, true)) {
-            respond(400, ['success' => false, 'message' => 'Tipo de archivo no permitido. Use JPG, PNG, WEBP o GIF.']);
+            respond(400, ['success' => false, 'message' => 'Tipo de archivo no permitido. Use JPG, PNG, WEBP, GIF o PDF.']);
         }
-        if ($file['size'] > 5 * 1024 * 1024) {
-            respond(400, ['success' => false, 'message' => 'El archivo excede el tamaño máximo de 5MB']);
+        $maxSize = $file['type'] === 'application/pdf' ? 15 * 1024 * 1024 : 5 * 1024 * 1024;
+        if ($file['size'] > $maxSize) {
+            respond(400, ['success' => false, 'message' => 'El archivo excede el tamaño máximo permitido']);
         }
         $ext       = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
         $filename  = uniqid('img_', true) . '.' . $ext;
@@ -268,6 +269,11 @@ try {
 
         $tokkoMessage = $input['message'] ?? '';
 
+        // Always forward to Tokko so leads appear in "Consultas".
+        // When there is no linked property ($tokkoRemoteId === null) the payload omits the
+        // `properties` array, which means Tokko receives it as a general inquiry — it should
+        // land in "Pendientes" unless a Tokko automation rule moves it (configure those rules
+        // directly in Tokko Broker > Configuración > Reglas de automatización).
         $tokkoOk = tokko_send_contact(
             $lead['name'],
             $input['email'],
@@ -322,6 +328,20 @@ try {
         respond(200, ['success' => true, 'data' => $lead]);
     }
 
+    if (preg_match('#^/leads/(\d+)$#', $path, $m) && $method === 'PATCH') {
+        require_admin();
+        $input  = json_input();
+        $allowed = ['new', 'contacted', 'closed', 'discarded'];
+        $status = $input['status'] ?? null;
+        if (!$status || !in_array($status, $allowed, true)) {
+            respond(400, ['success' => false, 'message' => 'Estado no valido']);
+        }
+        $stmt = db()->prepare('UPDATE leads SET status=:status, updated_at=NOW() WHERE id=:id');
+        $stmt->execute([':status' => $status, ':id' => (int)$m[1]]);
+        if ($stmt->rowCount() < 1) { respond(404, ['success' => false, 'message' => 'Lead no encontrado']); }
+        respond(200, ['success' => true, 'data' => ['id' => (int)$m[1], 'status' => $status]]);
+    }
+
     if (preg_match('#^/leads/(\d+)$#', $path, $m) && $method === 'PUT') {
         require_admin();
         $input = json_input();
@@ -357,7 +377,9 @@ try {
 
     // ─── Propiedades ─────────────────────────────────────────────────────────
     if ($path === '/properties' && $method === 'GET') {
-        tokko_auto_sync();
+        // Ensure branch_name column exists before querying (safe no-op if already present)
+        ensure_property_columns();
+
         $city          = $_GET['city'] ?? null;
         $operation     = $_GET['operation_type'] ?? null;
         $kind          = $_GET['listing_kind'] ?? null;
@@ -369,9 +391,13 @@ try {
         $params = [];
 
         // Exclude properties published by "ARE Homes" branch only when listing regular properties
-        // (developments are managed separately and should all be shown)
+        // Uses branch_name column when populated; falls back to details_json for rows not yet re-synced
         if ($kind !== 'development') {
-            $where[] = "(details_json IS NULL OR LOWER(details_json) NOT LIKE '%\"name\":\"are homes%')";
+            $where[] = "(
+                (branch_name IS NOT NULL AND LOWER(branch_name) NOT LIKE '%are homes%')
+                OR
+                (branch_name IS NULL AND (details_json IS NULL OR LOWER(details_json) NOT LIKE '%\"name\":\"are homes%'))
+            )";
         }
 
         if ($city) {
@@ -418,7 +444,31 @@ try {
 
         $rows = array_map('normalize_property_row', $stmt->fetchAll());
 
-        respond(200, ['success' => true, 'data' => $rows, 'meta' => ['total' => $total, 'page' => $page, 'limit' => $limit, 'totalPages' => (int)ceil($total / $limit)]]);
+        // ── Send response to client immediately, then sync in background ────
+        $responseBody = (string)json_encode([
+            'success' => true,
+            'data'    => $rows,
+            'meta'    => ['total' => $total, 'page' => $page, 'limit' => $limit, 'totalPages' => (int)ceil($total / $limit)],
+        ]);
+        http_response_code(200);
+        header('Content-Type: application/json');
+        header('Content-Length: ' . strlen($responseBody));
+        echo $responseBody;
+
+        // Flush to client NOW (works with FastCGI/PHP-FPM and classic mod_php)
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            if (ob_get_level()) {
+                ob_end_flush();
+            }
+            flush();
+        }
+
+        // Background: run auto-sync AFTER the user already has the data
+        ignore_user_abort(true);
+        tokko_auto_sync();
+        exit;
     }
 
     if (preg_match('#^/properties/(\d+)/units$#', $path, $m) && $method === 'GET') {
@@ -649,7 +699,8 @@ try {
                 (SELECT COUNT(*) FROM leads WHERE status='contacted') AS contacted_count,
                 (SELECT COUNT(*) FROM leads WHERE status='closed') AS closed_count,
                 (SELECT COUNT(*) FROM properties) AS total_properties,
-                (SELECT COUNT(*) FROM articles WHERE published=1) AS total_articles
+                (SELECT COUNT(*) FROM articles WHERE published=1) AS total_articles,
+                (SELECT COUNT(*) FROM services WHERE active=1) AS total_active_services
         ")->fetch();
 
         $byService = db()->query("
@@ -662,7 +713,80 @@ try {
 
         $latest = db()->query("SELECT id, name, status, created_at FROM leads ORDER BY created_at DESC LIMIT 5")->fetchAll();
 
-        respond(200, ['success' => true, 'data' => ['totals' => $totals, 'byService' => $byService, 'latest' => $latest]]);
+        // Propiedades visibles al publico (listing_kind='property', sin sucursal ARE Homes)
+        $publicFilter = "listing_kind = 'property' AND (details_json IS NULL OR LOWER(details_json) NOT LIKE '%\"name\":\"are homes%')";
+
+        $propStats = db()->query("
+            SELECT
+                COUNT(*) AS total_public,
+                SUM(CASE WHEN LOWER(operation_type) LIKE '%venta%' THEN 1 ELSE 0 END) AS for_sale,
+                SUM(CASE WHEN LOWER(operation_type) LIKE '%alquiler%' OR LOWER(operation_type) LIKE '%renta%' THEN 1 ELSE 0 END) AS for_rent
+            FROM properties
+            WHERE {$publicFilter}
+        ")->fetch();
+
+        $propByType = db()->query("
+            SELECT property_type AS name, COUNT(*) AS total
+            FROM properties
+            WHERE {$publicFilter}
+            AND property_type IS NOT NULL AND property_type != ''
+            GROUP BY property_type
+            ORDER BY total DESC
+            LIMIT 8
+        ")->fetchAll();
+
+        $totalDevelopments = (int)db()->query("
+            SELECT COUNT(*) FROM properties WHERE listing_kind = 'development'
+        ")->fetchColumn();
+
+        respond(200, ['success' => true, 'data' => [
+            'totals'           => $totals,
+            'byService'        => $byService,
+            'latest'           => $latest,
+            'propStats'        => $propStats,
+            'propByType'       => $propByType,
+            'totalDevelopments'=> $totalDevelopments,
+        ]]);
+    }
+
+    // ─── Site Content ──────────────────────────────────────────────────────────
+    if ($path === '/site-content' && $method === 'GET') {
+        // Auto-create table if it doesn't exist
+        db()->exec("CREATE TABLE IF NOT EXISTS site_content (
+            `key` VARCHAR(100) NOT NULL PRIMARY KEY,
+            `value` LONGTEXT,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $rows = db()->query("SELECT `key`, `value` FROM site_content")->fetchAll();
+        $data = [];
+        foreach ($rows as $row) {
+            $data[$row['key']] = $row['value'];
+        }
+        respond(200, ['success' => true, 'data' => $data]);
+    }
+
+    if (preg_match('#^/site-content/([a-zA-Z0-9_-]+)$#', $path, $m) && $method === 'PUT') {
+        require_admin();
+        $allowedKeys = [
+            'about_description', 'about_hero_image', 'about_facts',
+            'about_team', 'about_timeline', 'about_mission', 'about_vision',
+            'about_differentiators', 'about_brochure',
+            'legal_privacy', 'legal_terms',
+        ];
+        $key = $m[1];
+        if (!in_array($key, $allowedKeys, true)) {
+            respond(400, ['success' => false, 'message' => 'Clave no permitida']);
+        }
+        $input = json_input();
+        $value = $input['value'] ?? '';
+        db()->exec("CREATE TABLE IF NOT EXISTS site_content (
+            `key` VARCHAR(100) NOT NULL PRIMARY KEY,
+            `value` LONGTEXT,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $stmt = db()->prepare("INSERT INTO site_content (`key`, `value`) VALUES (:key, :val) ON DUPLICATE KEY UPDATE `value` = :val2, updated_at = NOW()");
+        $stmt->execute([':key' => $key, ':val' => $value, ':val2' => $value]);
+        respond(200, ['success' => true, 'data' => ['key' => $key]]);
     }
 
     not_found();

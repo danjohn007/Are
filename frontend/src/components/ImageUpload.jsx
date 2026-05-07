@@ -2,32 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import api from '../services/api';
 import { FolderOpen, Loader2, Trash2, Link as LinkIcon } from 'lucide-react';
 
-/**
- * Extract YouTube video ID from any common YouTube URL format.
- * Returns null if the URL is not a YouTube video URL.
- */
-function extractYouTubeId(url) {
-  try {
-    const u = new URL(url);
-    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
-    if (u.hostname.includes('youtube.com')) {
-      if (u.pathname === '/watch') return u.searchParams.get('v');
-      const embedMatch = u.pathname.match(/\/embed\/([^/?]+)/);
-      if (embedMatch) return embedMatch[1];
-      const shortsMatch = u.pathname.match(/\/shorts\/([^/?]+)/);
-      if (shortsMatch) return shortsMatch[1];
-    }
-  } catch {
-    // not a valid URL
-  }
-  return null;
-}
-
-function youtubeThumbnail(videoId) {
-  return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-}
-
-export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
+export default function ImageUpload({ value, onChange, label = 'Imagen', fileOnly = false }) {
   const [preview, setPreview] = useState(value || '');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -78,18 +53,6 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
     const raw = urlInput.trim();
     if (!raw) return;
     setError('');
-
-    const ytId = extractYouTubeId(raw);
-    if (ytId) {
-      const thumb = youtubeThumbnail(ytId);
-      setPreview(thumb);
-      onChange(thumb);
-      setUrlInput('');
-      setShowUrlInput(false);
-      return;
-    }
-
-    // Plain image URL
     setPreview(raw);
     onChange(raw);
     setUrlInput('');
@@ -120,14 +83,14 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
           />
         </label>
 
-        {/* URL / YouTube button */}
-        {!preview && (
+        {/* URL button */}
+        {!fileOnly && !preview && (
           <button
             type="button"
             onClick={() => setShowUrlInput((v) => !v)}
             className="flex items-center gap-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
           >
-            <LinkIcon size={14} /> Pegar URL / YouTube
+            <LinkIcon size={14} /> Pegar URL de imagen
           </button>
         )}
 
@@ -150,13 +113,13 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }) {
           </div>
         )}
 
-        {!preview && !showUrlInput && (
-          <span className="text-xs text-gray-400">JPG, PNG, WEBP, GIF o enlace de YouTube</span>
+        {!fileOnly && !preview && !showUrlInput && (
+          <span className="text-xs text-gray-400">JPG, PNG, WEBP, GIF o enlace de imagen</span>
         )}
       </div>
 
       {/* URL input panel */}
-      {showUrlInput && !preview && (
+      {!fileOnly && showUrlInput && !preview && (
         <div className="flex gap-2">
           <input
             type="url"
