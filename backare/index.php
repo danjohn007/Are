@@ -772,6 +772,14 @@ try {
             'about_team', 'about_timeline', 'about_mission', 'about_vision',
             'about_differentiators', 'about_brochure',
             'legal_privacy', 'legal_terms',
+            // Home page
+            'home_hero_badge', 'home_hero_title', 'home_hero_subtitle',
+            'home_hero_image', 'home_hero_cta_primary', 'home_hero_cta_secondary',
+            'home_hero_whatsapp',
+            'home_stats', 'home_features',
+            'home_why_eyebrow', 'home_why_title', 'home_why_desc',
+            'home_featured_title', 'home_featured_desc', 'home_featured_image',
+            'home_cta_title', 'home_cta_desc', 'home_cta_button',
         ];
         $key = $m[1];
         if (!in_array($key, $allowedKeys, true)) {

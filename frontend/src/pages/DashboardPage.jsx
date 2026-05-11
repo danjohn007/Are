@@ -157,6 +157,25 @@ export default function DashboardPage() {
       if (d.about_brochure) setAboutBrochure(d.about_brochure);
       if (d.legal_privacy) setLegalPrivacy(d.legal_privacy);
       if (d.legal_terms) setLegalTerms(d.legal_terms);
+      // Home page
+      if (d.home_hero_badge)      setHomeHeroBadge(d.home_hero_badge);
+      if (d.home_hero_title)      setHomeHeroTitle(d.home_hero_title);
+      if (d.home_hero_subtitle)   setHomeHeroSubtitle(d.home_hero_subtitle);
+      if (d.home_hero_image)      setHomeHeroImage(d.home_hero_image);
+      if (d.home_hero_cta_primary)   setHomeHeroCtaPrimary(d.home_hero_cta_primary);
+      if (d.home_hero_cta_secondary) setHomeHeroCtaSecondary(d.home_hero_cta_secondary);
+      if (d.home_hero_whatsapp)   setHomeHeroWhatsapp(d.home_hero_whatsapp);
+      if (d.home_stats)           setHomeStats(tryJson(d.home_stats, homeStats));
+      if (d.home_features)        setHomeFeatures(tryJson(d.home_features, homeFeatures));
+      if (d.home_why_eyebrow)     setHomeWhyEyebrow(d.home_why_eyebrow);
+      if (d.home_why_title)       setHomeWhyTitle(d.home_why_title);
+      if (d.home_why_desc)        setHomeWhyDesc(d.home_why_desc);
+      if (d.home_featured_title)  setHomeFeaturedTitle(d.home_featured_title);
+      if (d.home_featured_desc)   setHomeFeaturedDesc(d.home_featured_desc);
+      if (d.home_featured_image)  setHomeFeaturedImage(d.home_featured_image);
+      if (d.home_cta_title)       setHomeCtaTitle(d.home_cta_title);
+      if (d.home_cta_desc)        setHomeCtaDesc(d.home_cta_desc);
+      if (d.home_cta_button)      setHomeCtaButton(d.home_cta_button);
     } catch {}
     finally { setContentLoaded(true); }
   }
@@ -198,7 +217,7 @@ export default function DashboardPage() {
   useEffect(() => { if (tab === 'services') loadServices(); }, [tab]);
   useEffect(() => { if (tab === 'leads') loadLeads(leadsStatusFilter); }, [tab]); // eslint-disable-line
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (tab === 'about' || tab === 'legal') loadSiteContent(); }, [tab]);
+  useEffect(() => { if (tab === 'about' || tab === 'legal' || tab === 'home') loadSiteContent(); }, [tab]);
 
   async function submitArticle(event) {
     event.preventDefault();
@@ -291,9 +310,40 @@ export default function DashboardPage() {
     await loadData();
   }
 
+  // ─── Home page state ──────────────────────────────────────────────
+  const [homeHeroBadge, setHomeHeroBadge] = useState('Bienes Raíces — México');
+  const [homeHeroTitle, setHomeHeroTitle] = useState('Tu próxima propiedad\ncomienza aquí.');
+  const [homeHeroSubtitle, setHomeHeroSubtitle] = useState('Conectamos personas con espacios que transforman su vida. Compra, vende o renta con la asesoría de los mejores especialistas.');
+  const [homeHeroImage, setHomeHeroImage] = useState('https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=1600');
+  const [homeHeroCtaPrimary, setHomeHeroCtaPrimary] = useState('Ver propiedades');
+  const [homeHeroCtaSecondary, setHomeHeroCtaSecondary] = useState('Hablar con un asesor');
+  const [homeHeroWhatsapp, setHomeHeroWhatsapp] = useState('https://wa.me/524427070872?text=%C2%A1Hola!%20Quiero%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios%20inmobiliarios.');
+  const [homeStats, setHomeStats] = useState([
+    { value: '500+', label: 'Propiedades activas' },
+    { value: '+25',  label: 'Años de experiencia' },
+    { value: '1,200+', label: 'Clientes satisfechos' },
+    { value: '98%',  label: 'Tasa de cierre' },
+  ]);
+  const [homeFeatures, setHomeFeatures] = useState([
+    { title: 'Venta y Renta',           desc: 'Catálogo actualizado de propiedades residenciales y comerciales en las mejores zonas.' },
+    { title: 'Asesoría Personalizada',  desc: 'Nuestros asesores te guían en cada paso del proceso de compra, venta o renta.' },
+    { title: 'Valuación de Inmuebles',  desc: 'Estimamos el valor real de tu propiedad con estudios de mercado actualizados.' },
+    { title: 'Gestión Rápida',          desc: 'Procesos ágiles, contratos claros y seguimiento puntual para cerrar en el menor tiempo.' },
+  ]);
+  const [homeWhyEyebrow, setHomeWhyEyebrow] = useState('¿Por qué elegirnos?');
+  const [homeWhyTitle, setHomeWhyTitle] = useState('Servicio inmobiliario completo');
+  const [homeWhyDesc, setHomeWhyDesc] = useState('Desde la búsqueda hasta la firma, te acompañamos con profesionalismo y transparencia.');
+  const [homeFeaturedTitle, setHomeFeaturedTitle] = useState('Encuentra el espacio ideal para ti');
+  const [homeFeaturedDesc, setHomeFeaturedDesc] = useState('Explora nuestro catálogo con las mejores opciones en ubicaciones estratégicas, precios competitivos y todo el respaldo de ARE.');
+  const [homeFeaturedImage, setHomeFeaturedImage] = useState('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900');
+  const [homeCtaTitle, setHomeCtaTitle] = useState('¿Listo para dar el siguiente paso?');
+  const [homeCtaDesc, setHomeCtaDesc] = useState('Contáctanos hoy y un asesor especializado te atenderá sin compromiso.');
+  const [homeCtaButton, setHomeCtaButton] = useState('Contactar ahora');
+
   const navItems = [
     { id: 'metrics',  label: 'Metricas',         icon: LayoutDashboard },
     { id: 'leads',    label: 'Leads / CRM',       icon: Inbox },
+    { id: 'home',     label: 'Pagina Inicio',     icon: Home },
     { id: 'about',    label: 'Pagina Nosotros',   icon: Users2 },
     { id: 'services', label: 'Servicios',         icon: Wrench },
     { id: 'articles', label: 'Blog / Noticias',   icon: Newspaper },
@@ -303,6 +353,7 @@ export default function DashboardPage() {
   const tabLabels = {
     metrics:  'Metricas y Actividad',
     leads:    'Leads / CRM',
+    home:     'Pagina de Inicio',
     about:    'Pagina Nosotros',
     services: 'Gestion de Servicios',
     articles: 'Blog / Noticias',
@@ -603,6 +654,229 @@ export default function DashboardPage() {
           )}
 
           {/* NOSOTROS */}
+          {/* PAGINA INICIO */}
+          {tab === 'home' && (
+            <div className="max-w-3xl space-y-6">
+
+              {/* Hero */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Home size={16} className="text-brand-500" />
+                  Sección Hero (portada)
+                </h3>
+                <div className="space-y-4">
+                  <Field label="Etiqueta superior (badge)">
+                    <input className={INPUT} value={homeHeroBadge} onChange={(e) => setHomeHeroBadge(e.target.value)} placeholder="Bienes Raíces — México" />
+                  </Field>
+                  <Field label="Título principal">
+                    <textarea className={INPUT} rows={2} value={homeHeroTitle} onChange={(e) => setHomeHeroTitle(e.target.value)} placeholder="Tu próxima propiedad..." />
+                  </Field>
+                  <Field label="Subtítulo / descripción">
+                    <textarea className={INPUT} rows={3} value={homeHeroSubtitle} onChange={(e) => setHomeHeroSubtitle(e.target.value)} placeholder="Conectamos personas con espacios..." />
+                  </Field>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Texto botón primario">
+                      <input className={INPUT} value={homeHeroCtaPrimary} onChange={(e) => setHomeHeroCtaPrimary(e.target.value)} placeholder="Ver propiedades" />
+                    </Field>
+                    <Field label="Texto botón secundario">
+                      <input className={INPUT} value={homeHeroCtaSecondary} onChange={(e) => setHomeHeroCtaSecondary(e.target.value)} placeholder="Hablar con un asesor" />
+                    </Field>
+                  </div>
+                  <Field label="URL de WhatsApp (botón secundario)">
+                    <input className={INPUT} value={homeHeroWhatsapp} onChange={(e) => setHomeHeroWhatsapp(e.target.value)} placeholder="https://wa.me/52..." />
+                  </Field>
+                  <ImageUpload value={homeHeroImage} onChange={setHomeHeroImage} label="Imagen de fondo del hero" />
+                  <button
+                    type="button"
+                    disabled={saving === 'homeHero'}
+                    onClick={async () => {
+                      setSaving('homeHero');
+                      await Promise.all([
+                        api.put('/site-content/home_hero_badge',         { value: homeHeroBadge }),
+                        api.put('/site-content/home_hero_title',         { value: homeHeroTitle }),
+                        api.put('/site-content/home_hero_subtitle',      { value: homeHeroSubtitle }),
+                        api.put('/site-content/home_hero_image',         { value: homeHeroImage }),
+                        api.put('/site-content/home_hero_cta_primary',   { value: homeHeroCtaPrimary }),
+                        api.put('/site-content/home_hero_cta_secondary', { value: homeHeroCtaSecondary }),
+                        api.put('/site-content/home_hero_whatsapp',      { value: homeHeroWhatsapp }),
+                      ]);
+                      setSaving('');
+                    }}
+                    className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
+                  >
+                    <Save size={14} />
+                    {saving === 'homeHero' ? 'Guardando...' : 'Guardar hero'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <TrendingUp size={16} className="text-brand-500" />
+                  Estadísticas (barra de números)
+                </h3>
+                <div className="space-y-2">
+                  {homeStats.map((s, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input
+                        className="w-28 shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-arsenic placeholder:text-gray-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 transition-all font-body"
+                        placeholder="Valor"
+                        value={s.value}
+                        onChange={(e) => setHomeStats(prev => prev.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x))}
+                      />
+                      <input
+                        className="flex-1 min-w-0 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-arsenic placeholder:text-gray-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 transition-all font-body"
+                        placeholder="Etiqueta (ej: Años de experiencia)"
+                        value={s.label}
+                        onChange={(e) => setHomeStats(prev => prev.map((x, idx) => idx === i ? { ...x, label: e.target.value } : x))}
+                      />
+                      <button type="button" onClick={() => setHomeStats(prev => prev.filter((_, idx) => idx !== i))} className="shrink-0 rounded-lg p-2 text-granite hover:bg-red-50 hover:text-red-500">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex gap-3 pt-1">
+                    <button type="button" onClick={() => setHomeStats(prev => [...prev, { value: '', label: '' }])} className="flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-granite hover:border-brand-400 hover:text-brand-500 font-heading">
+                      <Plus size={14} /> Agregar
+                    </button>
+                    <button type="button" disabled={saving === 'homeStats'} onClick={() => saveKey('home_stats', JSON.stringify(homeStats), 'homeStats')} className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading">
+                      <Save size={14} />
+                      {saving === 'homeStats' ? 'Guardando...' : 'Guardar estadísticas'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ¿Por qué elegirnos? */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Sparkles size={16} className="text-brand-500" />
+                  Sección "¿Por qué elegirnos?"
+                </h3>
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Eyebrow (texto pequeño)">
+                      <input className={INPUT} value={homeWhyEyebrow} onChange={(e) => setHomeWhyEyebrow(e.target.value)} placeholder="¿Por qué elegirnos?" />
+                    </Field>
+                    <Field label="Título">
+                      <input className={INPUT} value={homeWhyTitle} onChange={(e) => setHomeWhyTitle(e.target.value)} placeholder="Servicio inmobiliario completo" />
+                    </Field>
+                  </div>
+                  <Field label="Descripción">
+                    <textarea className={INPUT} rows={2} value={homeWhyDesc} onChange={(e) => setHomeWhyDesc(e.target.value)} placeholder="Desde la búsqueda hasta la firma..." />
+                  </Field>
+                  {/* Features list */}
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-granite font-heading mt-2">Tarjetas de servicios</p>
+                  <div className="space-y-3">
+                    {homeFeatures.map((f, i) => (
+                      <div key={i} className="rounded-xl border border-gray-100 p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            className={`${INPUT} flex-1 font-semibold`}
+                            placeholder="Título del servicio"
+                            value={f.title}
+                            onChange={(e) => setHomeFeatures(prev => prev.map((x, idx) => idx === i ? { ...x, title: e.target.value } : x))}
+                          />
+                          <button type="button" onClick={() => setHomeFeatures(prev => prev.filter((_, idx) => idx !== i))} className="shrink-0 rounded-lg p-2 text-granite hover:bg-red-50 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <textarea
+                          className={INPUT}
+                          rows={2}
+                          placeholder="Descripción..."
+                          value={f.desc}
+                          onChange={(e) => setHomeFeatures(prev => prev.map((x, idx) => idx === i ? { ...x, desc: e.target.value } : x))}
+                        />
+                      </div>
+                    ))}
+                    <div className="flex gap-3 pt-1">
+                      <button type="button" onClick={() => setHomeFeatures(prev => [...prev, { title: '', desc: '' }])} className="flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-granite hover:border-brand-400 hover:text-brand-500 font-heading">
+                        <Plus size={14} /> Agregar tarjeta
+                      </button>
+                    </div>
+                  </div>
+                  <button type="button" disabled={saving === 'homeWhy'} onClick={async () => {
+                    setSaving('homeWhy');
+                    await Promise.all([
+                      api.put('/site-content/home_why_eyebrow', { value: homeWhyEyebrow }),
+                      api.put('/site-content/home_why_title',   { value: homeWhyTitle }),
+                      api.put('/site-content/home_why_desc',    { value: homeWhyDesc }),
+                      api.put('/site-content/home_features',    { value: JSON.stringify(homeFeatures) }),
+                    ]);
+                    setSaving('');
+                  }} className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading">
+                    <Save size={14} />
+                    {saving === 'homeWhy' ? 'Guardando...' : 'Guardar sección'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Sección destacada */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Star size={16} className="text-brand-500" />
+                  Sección "Propiedades Destacadas"
+                </h3>
+                <div className="space-y-4">
+                  <Field label="Título">
+                    <input className={INPUT} value={homeFeaturedTitle} onChange={(e) => setHomeFeaturedTitle(e.target.value)} placeholder="Encuentra el espacio ideal para ti" />
+                  </Field>
+                  <Field label="Descripción">
+                    <textarea className={INPUT} rows={3} value={homeFeaturedDesc} onChange={(e) => setHomeFeaturedDesc(e.target.value)} placeholder="Explora nuestro catálogo..." />
+                  </Field>
+                  <ImageUpload value={homeFeaturedImage} onChange={setHomeFeaturedImage} label="Imagen ilustrativa" />
+                  <button type="button" disabled={saving === 'homeFeatured'} onClick={async () => {
+                    setSaving('homeFeatured');
+                    await Promise.all([
+                      api.put('/site-content/home_featured_title', { value: homeFeaturedTitle }),
+                      api.put('/site-content/home_featured_desc',  { value: homeFeaturedDesc }),
+                      api.put('/site-content/home_featured_image', { value: homeFeaturedImage }),
+                    ]);
+                    setSaving('');
+                  }} className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading">
+                    <Save size={14} />
+                    {saving === 'homeFeatured' ? 'Guardando...' : 'Guardar sección'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Banner CTA */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
+                  <Zap size={16} className="text-brand-500" />
+                  Banner CTA final
+                </h3>
+                <div className="space-y-4">
+                  <Field label="Título">
+                    <input className={INPUT} value={homeCtaTitle} onChange={(e) => setHomeCtaTitle(e.target.value)} placeholder="¿Listo para dar el siguiente paso?" />
+                  </Field>
+                  <Field label="Descripción">
+                    <textarea className={INPUT} rows={2} value={homeCtaDesc} onChange={(e) => setHomeCtaDesc(e.target.value)} placeholder="Contáctanos hoy y un asesor..." />
+                  </Field>
+                  <Field label="Texto del botón">
+                    <input className={INPUT} value={homeCtaButton} onChange={(e) => setHomeCtaButton(e.target.value)} placeholder="Contactar ahora" />
+                  </Field>
+                  <button type="button" disabled={saving === 'homeCta'} onClick={async () => {
+                    setSaving('homeCta');
+                    await Promise.all([
+                      api.put('/site-content/home_cta_title',  { value: homeCtaTitle }),
+                      api.put('/site-content/home_cta_desc',   { value: homeCtaDesc }),
+                      api.put('/site-content/home_cta_button', { value: homeCtaButton }),
+                    ]);
+                    setSaving('');
+                  }} className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading">
+                    <Save size={14} />
+                    {saving === 'homeCta' ? 'Guardando...' : 'Guardar banner'}
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* PAGINA NOSOTROS */}
           {tab === 'about' && (
             <div className="max-w-3xl space-y-6">
 
