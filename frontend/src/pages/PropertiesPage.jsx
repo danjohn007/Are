@@ -6,9 +6,16 @@ function normalize(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
+function stateFrom(locationFull) {
+  if (!locationFull) return '';
+  const parts = locationFull.split('|');
+  return (parts[1] ?? '').trim();
+}
+
 function coloniaFrom(locationFull) {
   if (!locationFull) return '';
-  return locationFull.split(',')[0].trim();
+  const parts = locationFull.split('|');
+  return (parts[parts.length - 1] ?? '').trim();
 }
 
 const ChevronDown = () => (
@@ -62,7 +69,8 @@ export default function PropertiesPage() {
   const availableZonas = useMemo(() => {
     const seen = new Set();
     for (const p of baseSubset) {
-      if (p.city) seen.add(p.city.trim());
+      const state = stateFrom(p.location_full);
+      if (state) seen.add(state);
     }
     return Array.from(seen).sort((a, b) => a.localeCompare(b, 'es'));
   }, [baseSubset]);
@@ -70,7 +78,7 @@ export default function PropertiesPage() {
   // Colonias filtered by zona selection too
   const availableColonias = useMemo(() => {
     const seen = new Set();
-    const base = zonaFilter ? baseSubset.filter(p => normalize(p.city) === normalize(zonaFilter)) : baseSubset;
+    const base = zonaFilter ? baseSubset.filter(p => normalize(stateFrom(p.location_full)) === normalize(zonaFilter)) : baseSubset;
     for (const p of base) {
       const col = coloniaFrom(p.location_full);
       if (col) seen.add(col);
@@ -81,7 +89,7 @@ export default function PropertiesPage() {
   const properties = useMemo(() => {
     let result = baseSubset;
     if (typeFilter)    result = result.filter(p => normalize(p.property_type) === normalize(typeFilter));
-    if (zonaFilter)    result = result.filter(p => normalize(p.city) === normalize(zonaFilter));
+    if (zonaFilter)    result = result.filter(p => normalize(stateFrom(p.location_full)) === normalize(zonaFilter));
     if (coloniaFilter) result = result.filter(p => normalize(coloniaFrom(p.location_full)) === normalize(coloniaFilter));
     return result;
   }, [baseSubset, typeFilter, zonaFilter, coloniaFilter]);
@@ -89,13 +97,13 @@ export default function PropertiesPage() {
   const resetDependentFilters = () => { setZonaFilter(''); setColoniaFilter(''); setTypeFilter(''); };
 
   return (
-    <section className="section-shell py-14">
-      <div className="mb-10 text-center">
-        <h2 className="font-heading text-4xl font-black text-brand-500">Propiedades</h2>
-        <p className="mt-2 text-gray-600">Catálogo completo de propiedades en venta y renta con información verificada.</p>
+    <section className="section-shell py-8">
+      <div className="mb-5 text-center">
+        <h2 className="font-heading text-3xl font-black text-brand-500">Propiedades</h2>
+        <p className="mt-1 text-sm text-gray-500">Catálogo completo de propiedades en venta y renta con información verificada.</p>
       </div>
 
-      <div className="mb-10 flex flex-wrap items-center gap-x-6 gap-y-4 rounded-2xl border border-gray-100 bg-white px-6 py-4 shadow-sm">
+      <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-3 rounded-2xl border border-gray-100 bg-white px-5 py-3 shadow-sm">
         {/* Label */}
         <div className="flex items-center gap-2 text-slate-400">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -113,7 +121,7 @@ export default function PropertiesPage() {
               key={label}
               type="button"
               onClick={() => { setOpFilter(value); resetDependentFilters(); }}
-              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${
                 opFilter === value ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -130,7 +138,7 @@ export default function PropertiesPage() {
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+              className="appearance-none rounded-xl border border-gray-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
             >
               <option value="">Tipo de inmueble</option>
               {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -145,9 +153,9 @@ export default function PropertiesPage() {
             <select
               value={zonaFilter}
               onChange={(e) => { setZonaFilter(e.target.value); setColoniaFilter(''); }}
-              className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+              className="appearance-none rounded-xl border border-gray-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
             >
-              <option value="">Zona</option>
+              <option value="">Estado</option>
               {availableZonas.map(z => <option key={z} value={z}>{z}</option>)}
             </select>
             <ChevronDown />
@@ -160,7 +168,7 @@ export default function PropertiesPage() {
             <select
               value={coloniaFilter}
               onChange={(e) => setColoniaFilter(e.target.value)}
-              className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+              className="appearance-none rounded-xl border border-gray-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
             >
               <option value="">Colonia / Fracc.</option>
               {availableColonias.map(c => <option key={c} value={c}>{c}</option>)}
@@ -176,7 +184,7 @@ export default function PropertiesPage() {
             onClick={() => { setOpFilter(null); resetDependentFilters(); }}
             className="text-xs text-granite underline hover:text-brand-500 transition"
           >
-            Limpiar filtros
+            Limpiar
           </button>
         )}
 

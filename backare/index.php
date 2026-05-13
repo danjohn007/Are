@@ -131,13 +131,28 @@ try {
     if ($path === '/services' && $method === 'GET') {
         [$page, $limit, $offset] = pagination();
         $returnAll = isset($_GET['all']) && $_GET['all'] === '1';
+        $categoryFilter = isset($_GET['category']) ? trim($_GET['category']) : null;
+        $validCategories = ['propietarios', 'usuarios'];
+
         if ($returnAll) {
             require_admin();
-            $rows  = db()->prepare('SELECT * FROM services ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
-            $total = (int)db()->query('SELECT COUNT(*) FROM services')->fetchColumn();
+            if ($categoryFilter && in_array($categoryFilter, $validCategories, true)) {
+                $rows  = db()->prepare('SELECT * FROM services WHERE category = :cat ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+                $rows->bindValue(':cat', $categoryFilter);
+                $total = (int)db()->query("SELECT COUNT(*) FROM services WHERE category = " . db()->quote($categoryFilter))->fetchColumn();
+            } else {
+                $rows  = db()->prepare('SELECT * FROM services ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+                $total = (int)db()->query('SELECT COUNT(*) FROM services')->fetchColumn();
+            }
         } else {
-            $rows  = db()->prepare('SELECT * FROM services WHERE active = 1 ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
-            $total = (int)db()->query('SELECT COUNT(*) FROM services WHERE active = 1')->fetchColumn();
+            if ($categoryFilter && in_array($categoryFilter, $validCategories, true)) {
+                $rows  = db()->prepare('SELECT * FROM services WHERE active = 1 AND category = :cat ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+                $rows->bindValue(':cat', $categoryFilter);
+                $total = (int)db()->query("SELECT COUNT(*) FROM services WHERE active = 1 AND category = " . db()->quote($categoryFilter))->fetchColumn();
+            } else {
+                $rows  = db()->prepare('SELECT * FROM services WHERE active = 1 ORDER BY created_at DESC LIMIT :limit OFFSET :offset');
+                $total = (int)db()->query('SELECT COUNT(*) FROM services WHERE active = 1')->fetchColumn();
+            }
         }
         $rows->bindValue(':limit', $limit, PDO::PARAM_INT);
         $rows->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -159,13 +174,20 @@ try {
         if (empty($input['name']) || empty($input['slug'])) {
             respond(422, ['success' => false, 'message' => 'name y slug son requeridos']);
         }
-        $stmt = db()->prepare('INSERT INTO services (name, slug, description, active, image_url, form_schema) VALUES (:name, :slug, :description, :active, :image_url, :form_schema)');
+        $allowedCategories = ['propietarios', 'usuarios'];
+        $inputCategory = $input['category'] ?? 'propietarios';
+        if (!in_array($inputCategory, $allowedCategories, true)) {
+            $inputCategory = 'propietarios';
+        }
+        $stmt = db()->prepare('INSERT INTO services (name, slug, description, active, image_url, category, brochure_url, form_schema) VALUES (:name, :slug, :description, :active, :image_url, :category, :brochure_url, :form_schema)');
         $stmt->execute([
             ':name'        => $input['name'],
             ':slug'        => $input['slug'],
             ':description' => $input['description'] ?? null,
             ':active'      => isset($input['active']) ? ((bool)$input['active'] ? 1 : 0) : 1,
             ':image_url'   => $input['image_url'] ?? null,
+            ':category'    => $inputCategory,
+            ':brochure_url'=> $input['brochure_url'] ?? null,
             ':form_schema' => isset($input['form_schema']) ? json_encode($input['form_schema']) : null,
         ]);
         $id = (int)db()->lastInsertId();
@@ -177,13 +199,20 @@ try {
     if (preg_match('#^/services/(\d+)$#', $path, $m) && $method === 'PUT') {
         require_admin();
         $input = json_input();
-        $stmt = db()->prepare('UPDATE services SET name=:name, slug=:slug, description=:description, active=:active, image_url=:image_url, form_schema=:form_schema, updated_at=NOW() WHERE id=:id');
+        $allowedCategoriesUpd = ['propietarios', 'usuarios'];
+        $inputCategoryUpd = $input['category'] ?? 'propietarios';
+        if (!in_array($inputCategoryUpd, $allowedCategoriesUpd, true)) {
+            $inputCategoryUpd = 'propietarios';
+        }
+        $stmt = db()->prepare('UPDATE services SET name=:name, slug=:slug, description=:description, active=:active, image_url=:image_url, category=:category, brochure_url=:brochure_url, form_schema=:form_schema, updated_at=NOW() WHERE id=:id');
         $stmt->execute([
             ':name'        => $input['name'] ?? '',
             ':slug'        => $input['slug'] ?? '',
             ':description' => $input['description'] ?? null,
             ':active'      => isset($input['active']) ? ((bool)$input['active'] ? 1 : 0) : 1,
             ':image_url'   => $input['image_url'] ?? null,
+            ':category'    => $inputCategoryUpd,
+            ':brochure_url'=> $input['brochure_url'] ?? null,
             ':form_schema' => isset($input['form_schema']) ? json_encode($input['form_schema']) : null,
             ':id'          => (int)$m[1],
         ]);
@@ -390,15 +419,13 @@ try {
         $where  = [];
         $params = [];
 
-        // Exclude properties published by "ARE Homes" branch only when listing regular properties
+        // Exclude properties/developments published by "ARE Homes" branch
         // Uses branch_name column when populated; falls back to details_json for rows not yet re-synced
-        if ($kind !== 'development') {
-            $where[] = "(
-                (branch_name IS NOT NULL AND LOWER(branch_name) NOT LIKE '%are homes%')
-                OR
-                (branch_name IS NULL AND (details_json IS NULL OR LOWER(details_json) NOT LIKE '%\"name\":\"are homes%'))
-            )";
-        }
+        $where[] = "(
+            (branch_name IS NOT NULL AND LOWER(branch_name) NOT LIKE '%are homes%')
+            OR
+            (branch_name IS NULL AND (details_json IS NULL OR LOWER(details_json) NOT LIKE '%\"name\":\"are homes%'))
+        )";
 
         if ($city) {
             $where[]              = 'city LIKE :city';

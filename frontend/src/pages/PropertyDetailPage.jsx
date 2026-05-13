@@ -755,17 +755,6 @@ export default function PropertyDetailPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
-              {item.details?.public_url && (
-                <a
-                  href={item.details.public_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex rounded-xl border border-slate-300 px-6 py-3 font-semibold text-slate-800 transition hover:bg-slate-50"
-                >
-                  Ver ficha original
-                </a>
-              )}
-
               <Link
                 to={`/contact?property_id=${item.id}&property_title=${encodeURIComponent(item.title || 'esta propiedad')}`}
                 className="inline-flex rounded-xl bg-brand-500 px-6 py-3 font-semibold text-white transition hover:bg-brand-700"

@@ -138,7 +138,7 @@ export default function AboutPage() {
       {/* ══════════════════════════════════════
           HERO — split: texto / foto
       ══════════════════════════════════════ */}
-      <section className="section-shell py-12 md:py-16">
+      <section className="section-shell py-8 md:py-10">
         <div className="grid md:grid-cols-2 gap-10 md:items-center">
 
           {/* Texto */}
@@ -221,7 +221,7 @@ export default function AboutPage() {
       {/* ══════════════════════════════════════
           MISIÓN + VISIÓN
       ══════════════════════════════════════ */}
-      <section className="section-shell py-12 md:py-16">
+      <section className="section-shell py-8 md:py-10">
         <div className="grid gap-10 md:grid-cols-[1fr_1.4fr] md:items-start">
 
           {/* Misión */}
@@ -257,7 +257,7 @@ export default function AboutPage() {
       {/* ══════════════════════════════════════
           ¿POR QUÉ ELEGIR ARE?
       ══════════════════════════════════════ */}
-      <section className="bg-slate-50 py-12 md:py-16">
+      <section className="bg-slate-50 py-8 md:py-10">
         <div className="section-shell">
           <div className="grid gap-10 md:grid-cols-2 md:items-center">
 
@@ -305,7 +305,7 @@ export default function AboutPage() {
       {/* ══════════════════════════════════════
           HISTORIA — timeline horizontal
       ══════════════════════════════════════ */}
-      <section className="section-shell py-12 md:py-16">
+      <section className="section-shell py-8 md:py-10">
         <div className="mb-10" data-aos="fade-up">
           <Eyebrow text="Trayectoria" />
           <h2 className="font-heading text-3xl font-black text-slate-800">Nuestra historia</h2>
@@ -330,7 +330,7 @@ export default function AboutPage() {
       {/* ══════════════════════════════════════
           EQUIPO
       ══════════════════════════════════════ */}
-      <section className="bg-slate-50 py-12 md:py-16">
+      <section className="bg-slate-50 py-8 md:py-10">
         <div className="section-shell">
           <div className="mb-10" data-aos="fade-up">
             <Eyebrow text="Equipo" />
@@ -376,7 +376,7 @@ export default function AboutPage() {
       {/* ══════════════════════════════════════
           BROCHURE
       ══════════════════════════════════════ */}
-      <section className="section-shell py-12 md:py-16">
+      <section className="section-shell py-8 md:py-10">
         <div
           className="relative overflow-hidden rounded-2xl bg-slate-900 px-8 py-12 md:px-14 md:py-14"
           data-aos="zoom-in" data-aos-duration="700"

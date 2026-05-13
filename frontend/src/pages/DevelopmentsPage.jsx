@@ -6,9 +6,16 @@ function normalize(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
+function stateFrom(locationFull) {
+  if (!locationFull) return '';
+  const parts = locationFull.split('|');
+  return (parts[1] ?? '').trim();
+}
+
 function coloniaFrom(locationFull) {
   if (!locationFull) return '';
-  return locationFull.split(',')[0].trim();
+  const parts = locationFull.split('|');
+  return (parts[parts.length - 1] ?? '').trim();
 }
 
 const ChevronDown = () => (
@@ -77,14 +84,15 @@ export default function DevelopmentsPage() {
   const availableZonas = useMemo(() => {
     const seen = new Set();
     for (const d of baseSubset) {
-      if (d.city) seen.add(d.city.trim());
+      const state = stateFrom(d.location_full);
+      if (state) seen.add(state);
     }
     return Array.from(seen).sort((a, b) => a.localeCompare(b, 'es'));
   }, [baseSubset]);
 
   const availableColonias = useMemo(() => {
     const seen = new Set();
-    const base = zonaFilter ? baseSubset.filter(d => normalize(d.city) === normalize(zonaFilter)) : baseSubset;
+    const base = zonaFilter ? baseSubset.filter(d => normalize(stateFrom(d.location_full)) === normalize(zonaFilter)) : baseSubset;
     for (const d of base) {
       const col = coloniaFrom(d.location_full);
       if (col) seen.add(col);
@@ -95,7 +103,7 @@ export default function DevelopmentsPage() {
   const developments = useMemo(() => {
     let result = baseSubset;
     if (typeFilter)    result = result.filter(d => normalize(d.property_type) === normalize(typeFilter));
-    if (zonaFilter)    result = result.filter(d => normalize(d.city) === normalize(zonaFilter));
+    if (zonaFilter)    result = result.filter(d => normalize(stateFrom(d.location_full)) === normalize(zonaFilter));
     if (coloniaFilter) result = result.filter(d => normalize(coloniaFrom(d.location_full)) === normalize(coloniaFilter));
     return result;
   }, [baseSubset, typeFilter, zonaFilter, coloniaFilter]);
@@ -104,17 +112,17 @@ export default function DevelopmentsPage() {
   const anyFilterActive = operacion || typeFilter || zonaFilter || coloniaFilter;
 
   return (
-    <section className="section-shell py-14">
-      <div className="mx-auto mb-10 max-w-3xl text-center">
-        <h2 className="font-heading text-4xl font-black text-brand-500">Desarrollos</h2>
-        <p className="mt-2 text-gray-600">
+    <section className="section-shell py-8">
+      <div className="mx-auto mb-5 max-w-3xl text-center">
+        <h2 className="font-heading text-3xl font-black text-brand-500">Desarrollos</h2>
+        <p className="mt-1 text-sm text-gray-500">
           Comercializamos desarrollos de múltiples unidades para vivir o invertir, con acompañamiento completo desde la preventa hasta la entrega.
         </p>
       </div>
 
       {/* ── Filtros ── */}
       {!loading && !error && (
-        <div className="mb-10 flex flex-wrap items-center gap-x-6 gap-y-4 rounded-2xl border border-gray-100 bg-white px-6 py-4 shadow-sm">
+        <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-3 rounded-2xl border border-gray-100 bg-white px-5 py-3 shadow-sm">
           <div className="flex items-center gap-2 text-slate-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
@@ -129,7 +137,7 @@ export default function DevelopmentsPage() {
             <button
               type="button"
               onClick={() => { setOperacion(null); resetDependentFilters(); }}
-              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${operacion === null ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${operacion === null ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
             >
               Todos
             </button>
@@ -138,7 +146,7 @@ export default function DevelopmentsPage() {
                 key={op}
                 type="button"
                 onClick={() => { setOperacion(op); resetDependentFilters(); }}
-                className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${operacion === op ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${operacion === op ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 {OPERATION_LABELS[op] || (op.charAt(0).toUpperCase() + op.slice(1))}
               </button>
@@ -153,7 +161,7 @@ export default function DevelopmentsPage() {
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+                className="appearance-none rounded-xl border border-gray-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
               >
                 <option value="">Tipo de inmueble</option>
                 {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -162,15 +170,15 @@ export default function DevelopmentsPage() {
             </div>
           )}
 
-          {/* Zona */}
+          {/* Estado */}
           {availableZonas.length > 0 && (
             <div className="relative">
               <select
                 value={zonaFilter}
                 onChange={(e) => { setZonaFilter(e.target.value); setColoniaFilter(''); }}
-                className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+                className="appearance-none rounded-xl border border-gray-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
               >
-                <option value="">Zona</option>
+                <option value="">Estado</option>
                 {availableZonas.map(z => <option key={z} value={z}>{z}</option>)}
               </select>
               <ChevronDown />
@@ -183,7 +191,7 @@ export default function DevelopmentsPage() {
               <select
                 value={coloniaFilter}
                 onChange={(e) => setColoniaFilter(e.target.value)}
-                className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-4 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
+                className="appearance-none rounded-xl border border-gray-200 bg-white py-1.5 pl-3 pr-8 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 cursor-pointer"
               >
                 <option value="">Colonia / Fracc.</option>
                 {availableColonias.map(c => <option key={c} value={c}>{c}</option>)}

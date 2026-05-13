@@ -8,16 +8,19 @@ export default function ContactPage() {
   const propertyTitle = searchParams.get('property_title') || null;
   const serviceId     = searchParams.get('service_id') ? Number(searchParams.get('service_id')) : null;
   const serviceName   = searchParams.get('service_name') || null;
+  const brochureUrl   = searchParams.get('brochure_url') || null;
 
   const [form, setForm] = useState(() => ({
     name: '',
     email: '',
     phone: '',
-    message: serviceName
-      ? `Necesito información sobre el servicio: ${serviceName}\n\n`
-      : propertyTitle
-        ? `Necesito información sobre la propiedad: ${propertyTitle}\n\n`
-        : ``,
+    message: brochureUrl && serviceName
+      ? `Solicito el brochure del servicio: ${serviceName}\n\n`
+      : serviceName
+        ? `Necesito información sobre el servicio: ${serviceName}\n\n`
+        : propertyTitle
+          ? `Necesito información sobre la propiedad: ${propertyTitle}\n\n`
+          : ``,
   }));
   const [loading, setLoading] = useState(false);
   const [accepted, setAccepted] = useState(false);
@@ -58,7 +61,19 @@ export default function ContactPage() {
       });
       setForm({ name: '', email: '', phone: '', message: '' });
       refreshCaptcha();
-      alert('Tu mensaje ha sido enviado exitosamente. Nos pondremos en contacto pronto.');
+      if (brochureUrl) {
+        alert('Tu mensaje ha sido enviado. El brochure se descargará en un momento.');
+        const a = document.createElement('a');
+        a.href = brochureUrl;
+        a.target = '_blank';
+        a.rel = 'noreferrer';
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        alert('Tu mensaje ha sido enviado exitosamente. Nos pondremos en contacto pronto.');
+      }
     } finally {
       setLoading(false);
     }
@@ -111,6 +126,16 @@ export default function ContactPage() {
             <h3 className="mt-3 font-heading text-3xl font-black text-slate-950 md:text-4xl">Cuéntanos qué necesitas</h3>
             <p className="mt-3 text-sm leading-7 text-slate-600 md:text-base">Completamos este formulario en menos de un minuto. Revisamos cada solicitud y te contactamos con una respuesta útil, no genérica.</p>
           </div>
+
+          {brochureUrl && (
+            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4">
+              <span className="mt-0.5 text-xl">📄</span>
+              <div>
+                <p className="text-sm font-bold text-brand-800">Descarga de brochure</p>
+                <p className="mt-0.5 text-xs text-brand-700">Llena el formulario y al enviarlo se descargará el brochure de <strong>{serviceName}</strong> automáticamente.</p>
+              </div>
+            </div>
+          )}
 
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
             <div className="grid gap-5 md:grid-cols-2">

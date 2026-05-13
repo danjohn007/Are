@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, MessageCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, MessageCircle, FileDown } from 'lucide-react';
 import api from '../services/api';
 
 const GRADIENTS = [
@@ -61,6 +61,15 @@ export default function ServiceDetailPage() {
     const params = new URLSearchParams({
       service_id: service.id,
       service_name: service.name,
+    });
+    navigate(`/contact?${params.toString()}`);
+  }
+
+  function requestBrochure() {
+    const params = new URLSearchParams({
+      service_id: service.id,
+      service_name: service.name,
+      brochure_url: service.brochure_url,
     });
     navigate(`/contact?${params.toString()}`);
   }
@@ -174,6 +183,17 @@ export default function ServiceDetailPage() {
               <MessageCircle size={20} />
               Quiero más información
             </button>
+
+            {service.brochure_url && (
+              <button
+                type="button"
+                onClick={requestBrochure}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-brand-500 px-6 py-3 text-sm font-bold text-brand-600 transition hover:bg-brand-50 active:scale-95"
+              >
+                <FileDown size={18} />
+                Descargar Brochure
+              </button>
+            )}
 
             <p className="mt-3 text-center text-xs text-gray-400">
               Sin compromisos. Respondemos todas las consultas.

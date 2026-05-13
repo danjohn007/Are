@@ -55,26 +55,18 @@ export default function NewsPage() {
   });
 
   return (
-    <section className="section-shell py-14">
-      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-orange-900 px-7 py-10 text-white md:px-10 md:py-12">
+    <section className="section-shell py-8">
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-orange-900 px-7 py-8 text-white md:px-10 md:py-10">
         <div className="pointer-events-none absolute -right-10 -top-8 h-44 w-44 rounded-full bg-orange-400/30 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-14 left-10 h-36 w-36 rounded-full bg-amber-200/20 blur-2xl" />
 
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/90">ARE Journal</p>
-        <h2 className="mt-3 max-w-2xl font-heading text-4xl font-black leading-tight text-white md:text-5xl">Blog inmobiliario para comprar mejor e invertir con visión</h2>
-        <p className="mt-4 max-w-2xl text-sm text-white/90 md:text-base">
+        <h2 className="mt-3 max-w-2xl font-heading text-3xl font-black leading-tight text-white md:text-4xl">Blog inmobiliario para comprar mejor e invertir con visión</h2>
+        <p className="mt-3 max-w-2xl text-sm text-white/80">
           Publicaciones con análisis de mercado, zonas con potencial, guías legales y estrategias para tomar decisiones con datos.
         </p>
-
-        <div className="mt-7 grid gap-3 md:grid-cols-[1fr_auto]">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Busca por tema: plusvalía, compra, renta, inversión..."
-            className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-white/70 focus:border-white/50 focus:outline-none"
-          />
-          <a href="https://wa.me/524427070872?text=%C2%A1Hola!%20Quiero%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios%20inmobiliarios." target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-orange-50">
+        <div className="mt-5">
+          <a href="https://wa.me/524427070872?text=%C2%A1Hola!%20Quiero%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios%20inmobiliarios." target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-orange-50">
             Hablar con un asesor
           </a>
         </div>

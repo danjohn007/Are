@@ -6,7 +6,7 @@ import {
   Inbox, Sparkles, Phone, CheckCircle, Home, Building2,
   Trash2, Save, Pencil, X, RefreshCw, Wrench, Plus,
   LayoutDashboard, Newspaper, LogOut, TrendingUp, Clock, User, Tag,
-  Users2, FileText, Shield, Target, Upload, Download,
+  Users2, FileText, Shield, Target, Upload, Download, Loader2,
   Star, Award, Handshake, MapPin, Key, BarChart2, Heart, Zap, Globe, Lock,
 } from 'lucide-react';
 
@@ -17,7 +17,12 @@ const DIFF_ICONS = {
 const DIFF_ICON_KEYS = Object.keys(DIFF_ICONS);
 
 const initialArticle = { title: '', slug: '', excerpt: '', content: '', image_url: '', external_url: '', published: true };
-const initialService = { name: '', slug: '', description: '', image_url: '', active: true };
+const SERVICE_CATEGORIES = [
+  { value: 'propietarios', label: 'Propietarios e Inversionistas' },
+  { value: 'usuarios',     label: 'Usuarios' },
+];
+
+const initialService = { name: '', slug: '', description: '', image_url: '', active: true, category: 'propietarios', brochure_url: '' };
 
 const INPUT = [
   'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-arsenic',
@@ -82,6 +87,7 @@ export default function DashboardPage() {
   const [services, setServices] = useState([]);
   const [serviceForm, setServiceForm] = useState(initialService);
   const [editingServiceId, setEditingServiceId] = useState(null);
+  const [brochureUploading, setBrochureUploading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const formRef = useRef(null);
@@ -277,6 +283,8 @@ export default function DashboardPage() {
       description: s.description || '',
       image_url: s.image_url || '',
       active: s.active !== 0 && s.active !== false,
+      category: s.category || 'propietarios',
+      brochure_url: s.brochure_url || '',
     });
     setTimeout(() => serviceFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   }
@@ -297,6 +305,8 @@ export default function DashboardPage() {
     await api.put(`/services/${s.id}`, {
       name: s.name, slug: s.slug, description: s.description,
       image_url: s.image_url, active: !s.active,
+      category: s.category || 'propietarios',
+      brochure_url: s.brochure_url || null,
     });
     await loadServices();
   }
@@ -1316,6 +1326,19 @@ export default function DashboardPage() {
                       required
                     />
                   </Field>
+                  <Field label="Categoría">
+                    <div className="relative">
+                      <select
+                        className={INPUT + ' appearance-none cursor-pointer'}
+                        value={serviceForm.category}
+                        onChange={(e) => setServiceForm((prev) => ({ ...prev, category: e.target.value }))}
+                      >
+                        {SERVICE_CATEGORIES.map((c) => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </Field>
                   <Field label="Descripcion">
                     <textarea
                       className={INPUT}
@@ -1330,6 +1353,57 @@ export default function DashboardPage() {
                     onChange={(url) => setServiceForm((prev) => ({ ...prev, image_url: url }))}
                     label="Imagen del servicio (opcional)"
                   />
+                  {/* ── Brochure PDF ── */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">Brochure PDF (opcional)</label>
+                    {serviceForm.brochure_url ? (
+                      <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                        <FileText size={16} className="shrink-0 text-green-600" />
+                        <a href={serviceForm.brochure_url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-sm font-semibold text-green-700 hover:underline">
+                          Ver brochure subido
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setServiceForm((prev) => ({ ...prev, brochure_url: '' }))}
+                          className="shrink-0 rounded-lg p-1 text-red-500 hover:bg-red-50"
+                          title="Quitar brochure"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className={`cursor-pointer rounded-xl border-2 border-dashed px-4 py-3 text-sm transition flex items-center gap-2 ${
+                        brochureUploading ? 'border-gray-200 text-gray-400' : 'border-brand-500 text-brand-700 hover:bg-brand-50'
+                      }`}>
+                        {brochureUploading
+                          ? <><Loader2 size={14} className="animate-spin" /> Subiendo PDF...</>
+                          : <><Upload size={14} /> Subir PDF del brochure</>
+                        }
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          disabled={brochureUploading}
+                          onChange={async (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            setBrochureUploading(true);
+                            try {
+                              const fd = new FormData();
+                              fd.append('image', file);
+                              const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                              setServiceForm((prev) => ({ ...prev, brochure_url: res.data.data.url }));
+                            } catch {
+                              alert('No se pudo subir el PDF. Intenta de nuevo.');
+                            } finally {
+                              setBrochureUploading(false);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
                   <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                     <input
                       type="checkbox"
@@ -1394,6 +1468,9 @@ export default function DashboardPage() {
                               s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                             }`}>
                               {s.active ? 'Activo' : 'Inactivo'}
+                            </span>
+                            <span className="ml-1 mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold font-heading text-slate-600">
+                              {SERVICE_CATEGORIES.find((c) => c.value === s.category)?.label ?? s.category ?? 'Sin categoría'}
                             </span>
                           </div>
                         </div>

@@ -4,11 +4,11 @@ import { useAuth } from '../context/AuthContext';
 
 const links = [
   { to: '/', label: 'Inicio' },
+  { to: '/nosotros', label: 'NOSOTROS' },
   { to: '/properties', label: 'Propiedades' },
   { to: '/developments', label: 'Desarrollos' },
   { to: '/services', label: 'Servicios' },
   { to: '/blog', label: 'BLOG' },
-  { to: '/nosotros', label: 'NOSOTROS' },
 ];
 
 export default function Navbar() {
@@ -71,6 +71,14 @@ export default function Navbar() {
           >
             Contáctanos
           </Link>
+          <a
+            href="https://arehomes.mx"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden rounded-lg border border-brand-500 px-4 py-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-50 md:block"
+          >
+            Are Homes
+          </a>
 
           {/* Mobile hamburger */}
           <button

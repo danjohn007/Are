@@ -149,6 +149,19 @@ function ensure_property_columns(): void
         $pdo->exec('ALTER TABLE properties ' . implode(', ', $alterations));
     }
 
+    // Ensure listing_kind ENUM includes 'unit' (added later in the codebase)
+    try {
+        $enumRow = $pdo->query(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'properties' AND COLUMN_NAME = 'listing_kind'"
+        )->fetchColumn();
+        if ($enumRow !== false && strpos((string)$enumRow, "'unit'") === false) {
+            $pdo->exec("ALTER TABLE properties MODIFY COLUMN listing_kind ENUM('property','development','unit') NOT NULL DEFAULT 'property'");
+        }
+    } catch (\Throwable) {
+        // Non-fatal — ignore
+    }
+
     // Index on listing_kind + branch_name for fast filtering
     try {
         $pdo->exec('ALTER TABLE properties ADD INDEX idx_listing_kind (listing_kind), ADD INDEX idx_branch_name (branch_name)');
@@ -518,8 +531,12 @@ function tokko_sync(): array
 
     // Upsert units
     foreach ($unitRows as $row) {
-        $stmt->execute($row);
-        $seenUnitTokkoIds[] = $row[':tokko_id'];
+        try {
+            $stmt->execute($row);
+            $seenUnitTokkoIds[] = $row[':tokko_id'];
+        } catch (\Throwable $e) {
+            $errors[] = 'Unit insert failed (' . ($row[':tokko_id'] ?? '?') . '): ' . $e->getMessage();
+        }
     }
 
     // Remove developments/units deleted from Tokko (preserving DB ids for survivors)

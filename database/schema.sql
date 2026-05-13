@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS properties (
   files_json LONGTEXT,
   details_json LONGTEXT,
   operation_type ENUM('venta','renta') NOT NULL DEFAULT 'venta',
-  listing_kind ENUM('property','development') NOT NULL DEFAULT 'property',
+  listing_kind ENUM('property','development','unit') NOT NULL DEFAULT 'property',
   property_type VARCHAR(120),
   reference_code VARCHAR(80),
   location_full VARCHAR(255),
@@ -74,6 +74,12 @@ CREATE TABLE IF NOT EXISTS site_content (
 -- Migration: add active and image_url columns to services
 ALTER TABLE services ADD COLUMN active TINYINT(1) NOT NULL DEFAULT 1 AFTER price;
 ALTER TABLE services ADD COLUMN image_url TEXT NULL AFTER active;
+
+-- Migration: add category column to services
+ALTER TABLE services ADD COLUMN category VARCHAR(40) NOT NULL DEFAULT 'propietarios' AFTER image_url;
+
+-- Migration: add brochure_url column to services
+ALTER TABLE services ADD COLUMN brochure_url TEXT NULL AFTER category;
 
 CREATE TABLE IF NOT EXISTS leads (
   id INT AUTO_INCREMENT PRIMARY KEY,
