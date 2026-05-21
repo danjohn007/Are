@@ -5,6 +5,167 @@ import PropertyCard from '../components/PropertyCard';
 
 const fallbackImage = 'https://images.unsplash.com/photo-1570129477492-45c003edd2be';
 
+// ─── Brochure download ───────────────────────────────────────────────────────
+function buildBrochureHTML(item, priceLabel, badgeLabel) {
+  // "Admin-selected" photos in Tokko = regular photos (is_blueprint: false)
+  const brochurePhotos = (item.photos || []).filter((p) => !p.is_blueprint);
+  const photosToShow = brochurePhotos.length ? brochurePhotos : (item.photos || []).slice(0, 12);
+
+  const rows = [
+    ['Tipo de propiedad', translateTokkoValue(item.property_type)],
+    ['Operación', badgeLabel],
+    ['Referencia', item.reference_code],
+    ['Ciudad', item.city],
+    ['Dirección', item.address],
+    ['Ubicación', item.location_full && item.location_full !== item.address ? item.location_full : null],
+    ['Código postal', item.details?.zip_code],
+    ['Superficie total', item.area ? `${Number(item.area).toLocaleString('es-MX')} m²` : null],
+    ['Superficie techada', item.details?.roofed_surface ? `${Number(item.details.roofed_surface).toLocaleString('es-MX')} m²` : null],
+    ['Recámaras', item.bedrooms || null],
+    ['Baños', item.bathrooms || null],
+    ['Estacionamientos', item.details?.parking_lot_amount || null],
+    ['Condición', translateTokkoValue(item.details?.property_condition)],
+    ['Antigüedad', item.details?.age || null],
+    ['Gastos / mantenimiento', item.details?.expenses ? `$${Number(item.details.expenses).toLocaleString('es-MX')} MXN` : null],
+    ['Crédito elegible', translateTokkoValue(item.details?.credit_eligible)],
+  ].filter(([, v]) => v !== null && v !== undefined && v !== '');
+
+  // Split rows into two columns for landscape layout
+  const half = Math.ceil(rows.length / 2);
+  const col1 = rows.slice(0, half);
+  const col2 = rows.slice(half);
+  const detailsHtml = rows.length
+    ? `<div class="section"><h2>Detalles de la propiedad</h2><div class="two-col"><table class="details-table">${col1.map(([l, v]) => `<tr><th>${l}</th><td>${v}</td></tr>`).join('')}</table><table class="details-table">${col2.map(([l, v]) => `<tr><th>${l}</th><td>${v}</td></tr>`).join('')}</table></div></div>`
+    : '';
+
+  const tagsHtml = (item.tags || []).length
+    ? `<div class="section"><h2>Amenidades y características</h2><div class="tags">${item.tags.map((t) => `<span class="tag">${translateTokkoValue(t)}</span>`).join('')}</div></div>`
+    : '';
+
+  const galleryHtml = photosToShow.length
+    ? `<div class="section"><h2>Imágenes</h2><div class="gallery">${photosToShow.map((p) => `<div class="gallery-item"><img src="${p.original || p.image}" alt="" /></div>`).join('')}</div></div>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>${item.title || 'Ficha de propiedad'} — ARE Inmobiliaria</title>
+<style>
+  @page { size: A4 landscape; margin: 12mm 16mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1a1a2e; background: #fff; font-size: 13px; }
+  /* Header */
+  .header { background: #1a1a2e; color: #fff; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; border-radius: 10px; margin-bottom: 14px; }
+  .header .brand { font-size: 20px; font-weight: 900; letter-spacing: 0.08em; }
+  .header .brand span { color: #e67e22; }
+  .header .date { font-size: 11px; color: rgba(255,255,255,0.6); }
+  /* Top row: hero left + price+stats right */
+  .top-row { display: flex; gap: 16px; margin-bottom: 14px; align-items: stretch; }
+  .hero { flex: 1; }
+  .badge { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; background: #e67e22; color: #fff; margin-bottom: 8px; }
+  .hero h1 { font-size: 20px; font-weight: 900; line-height: 1.25; color: #1a1a2e; }
+  .hero .address { margin-top: 5px; font-size: 12px; color: #6b7280; }
+  .right-panel { display: flex; flex-direction: column; gap: 10px; min-width: 240px; }
+  .price-block { background: #1a1a2e; color: #fff; border-radius: 12px; padding: 14px 18px; }
+  .price-block .label { font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: rgba(255,255,255,0.7); }
+  .price-block .price { font-size: 22px; font-weight: 900; margin-top: 3px; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stat { background: #f3f4f6; border-radius: 10px; padding: 8px 14px; font-size: 12px; flex: 1; min-width: 70px; text-align: center; }
+  .stat strong { display: block; font-size: 16px; font-weight: 800; color: #1a1a2e; }
+  /* Sections */
+  .section { margin-bottom: 14px; }
+  .section h2 { font-size: 13px; font-weight: 800; color: #1a1a2e; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid #e67e22; }
+  .description { font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-line; max-height: 80px; overflow: hidden; }
+  /* Details two-column */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .details-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .details-table tr { border-bottom: 1px solid #f0f0f0; }
+  .details-table tr:last-child { border-bottom: none; }
+  .details-table th { text-align: left; padding: 5px 8px 5px 0; color: #9ca3af; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; width: 45%; }
+  .details-table td { padding: 5px 0; font-weight: 600; color: #1a1a2e; }
+  /* Tags */
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { background: #fef3e2; color: #b45309; border-radius: 999px; padding: 4px 11px; font-size: 11px; font-weight: 600; }
+  /* Gallery — 4 columns landscape */
+  .gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .gallery-item img { width: 100%; height: 150px; object-fit: cover; border-radius: 8px; display: block; }
+  /* Footer */
+  .footer { margin-top: 14px; background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 10px 0 0; display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; }
+  /* Print */
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .gallery { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="brand">ARE <span>Inmobiliaria</span></div>
+  <div class="date">Generado el ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+</div>
+
+<div class="top-row">
+  <div class="hero">
+    <span class="badge">${badgeLabel}</span>
+    <h1>${item.title || 'Propiedad'}</h1>
+    <p class="address">${[item.address, item.location_full && item.location_full !== item.address ? item.location_full : null, item.city].filter(Boolean).join(' · ')}</p>
+    ${item.description ? `<div class="section" style="margin-top:12px"><h2>Descripción</h2><p class="description">${item.description.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
+  </div>
+  <div class="right-panel">
+    <div class="price-block">
+      <p class="label">Precio</p>
+      <p class="price">${priceLabel}</p>
+    </div>
+    <div class="stats">
+      ${item.area ? `<div class="stat"><strong>${Number(item.area).toLocaleString('es-MX')} m²</strong>Superficie</div>` : ''}
+      ${item.bedrooms ? `<div class="stat"><strong>${item.bedrooms}</strong>Recámaras</div>` : ''}
+      ${item.bathrooms ? `<div class="stat"><strong>${item.bathrooms}</strong>Baños</div>` : ''}
+      ${item.details?.parking_lot_amount ? `<div class="stat"><strong>${item.details.parking_lot_amount}</strong>Cajones</div>` : ''}
+    </div>
+  </div>
+</div>
+
+${detailsHtml}
+${tagsHtml}
+${galleryHtml}
+
+<div class="footer">
+  <span>ARE Inmobiliaria — Ficha de propiedad</span>
+  ${item.reference_code ? `<span>Ref: ${item.reference_code}</span>` : ''}
+</div>
+</body>
+</html>`;
+}
+
+function downloadPropertyBrochure(item) {
+  const priceLabel = Number(item.price) > 0
+    ? `$${Number(item.price).toLocaleString('es-MX')} MXN`
+    : 'Consultar precio';
+  const badgeLabel = item.listing_kind === 'development' ? 'Desarrollo'
+    : item.operation_type === 'renta' ? 'En Renta' : 'En Venta';
+
+  const html = buildBrochureHTML(item, priceLabel, badgeLabel);
+
+  // Use a hidden iframe — no new tab, user stays on the page, triggers print immediately
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;border:none;opacity:0;pointer-events:none';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  // Give the iframe a moment to render, then print
+  iframe.onload = () => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    // Remove iframe after print dialog closes (or after a safe delay)
+    setTimeout(() => document.body.removeChild(iframe), 2000);
+  };
+}
+
 function getYouTubeId(url) {
   if (!url) return null;
   const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
@@ -761,6 +922,16 @@ export default function PropertyDetailPage() {
               >
                 Solicitar información
               </Link>
+              <button
+                type="button"
+                onClick={() => downloadPropertyBrochure(item)}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 font-semibold text-slate-700 shadow-sm transition hover:border-brand-500 hover:text-brand-500"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
+                </svg>
+                Descargar información
+              </button>
             </div>
 
           </div>
