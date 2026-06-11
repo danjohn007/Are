@@ -146,8 +146,7 @@ export default function AboutPage() {
             <Eyebrow text="Quiénes somos" />
 
             <h1 className="font-heading text-5xl font-black leading-tight text-slate-900 md:text-6xl">
-              ARE<br />
-              <span className="text-brand-500">Inmobiliaria</span>
+              are <span className="text-brand-500">REAL ESTATE</span>
             </h1>
 
             <p className="mt-4 text-base text-gray-600 leading-relaxed max-w-md">
@@ -182,7 +181,7 @@ export default function AboutPage() {
           <div className="relative" data-aos="fade-left" data-aos-duration="700" data-aos-delay="100">
             <img
               src={heroImage}
-              alt="Oficinas ARE Inmobiliaria"
+              alt="Oficinas are REAL ESTATE"
               className="w-full h-[420px] object-cover rounded-2xl shadow-2xl"
             />
             <div
@@ -278,7 +277,7 @@ export default function AboutPage() {
             <div className="order-1 md:order-2" data-aos="fade-left" data-aos-duration="700">
               <Eyebrow text="Diferenciadores" />
               <h2 className="font-heading text-3xl font-black text-slate-800 mb-7 leading-tight">
-                ¿Por qué elegir<br />ARE Inmobiliaria?
+                ¿Por qué elegir<br />are REAL ESTATE?
               </h2>
 
               <div className="space-y-5">

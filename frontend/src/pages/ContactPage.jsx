@@ -231,7 +231,7 @@ export default function ContactPage() {
                 <a href="http://alterrarealestate.tuinmobiliaria.com.ar/Privacidad" target="_blank" rel="noreferrer" className="font-semibold text-brand-500 underline underline-offset-2 hover:text-brand-600">
                   aviso de privacidad
                 </a>{' '}
-                de ARE Inmobiliaria.
+                de are REAL ESTATE.
               </span>
             </label>
 

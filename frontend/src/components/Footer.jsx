@@ -45,8 +45,8 @@ export default function Footer() {
     { to: '/properties', label: 'Propiedades' },
     { to: '/developments', label: 'Desarrollos' },
     { to: '/services', label: 'Servicios' },
-    { to: '/blog', label: 'BLOG' },
-    { to: '/contact', label: 'NOSOTROS' },
+    { to: '/blog', label: 'Blog' },
+    { to: '/contact', label: 'Nosotros' },
   ];
 
   return (
@@ -84,8 +84,22 @@ export default function Footer() {
         <div>
           <h4 className="mb-4 font-subheading text-sm uppercase tracking-[0.2em] text-slate-950">Contacto</h4>
           <ul className="space-y-2 text-sm">
-            <li>info@are.mx</li>
-            <li>442 707 0872</li>
+            <li>
+              <a
+                href="https://mail.google.com/mail/?view=cm&fs=1&to=info@are.mx"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Enviar correo a info@are.mx usando Gmail"
+                className="transition hover:text-brand-500"
+              >
+                info@are.mx
+              </a>
+            </li>
+            <li>
+              <a href="tel:+524427070872" aria-label="Llamar al 442 707 0872" className="transition hover:text-brand-500">
+                442 707 0872
+              </a>
+            </li>
             <li>Lunes–Viernes: 9am – 7pm</li>
           </ul>
         </div>
@@ -94,8 +108,7 @@ export default function Footer() {
         <div>
           <h4 className="mb-4 font-subheading text-sm uppercase tracking-[0.2em] text-slate-950">Oficinas</h4>
           <p className="text-sm leading-relaxed">
-            Prol. Bernardo Quintana No. 300 Piso 14-A Torre 57 CP 76090<br />
-            Centro Sur, Querétaro, Qro
+            Prol. Bernardo Quintana No. 300 || Piso 14-A || Torre 57 || Centro Sur || CP 76190 || Querétaro, Qro.
           </p>
           <a
             href="https://maps.app.goo.gl/u5hinV12sCAoSfmB9"

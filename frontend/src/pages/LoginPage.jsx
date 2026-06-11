@@ -1,14 +1,18 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Lock, Mail, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  if (isAuthenticated) {
+    return <Navigate to="/admin" replace />;
+  }
 
   function update(name, value) {
     setCredentials((prev) => ({ ...prev, [name]: value }));
@@ -21,7 +25,7 @@ export default function LoginPage() {
     setError('');
     try {
       await login(credentials.email, credentials.password);
-      navigate('/admin');
+      navigate('/admin', { replace: true });
     } catch (_error) {
       setError('Credenciales incorrectas. Verifica tu correo y contraseña.');
     } finally {
@@ -49,7 +53,7 @@ export default function LoginPage() {
               Panel Administrativo
             </span>
             <h1 className="mt-8 font-heading text-4xl font-black leading-tight text-white">
-              ARE<br />Inmobiliaria
+              are <span className="text-brand-500">REAL ESTATE</span>
             </h1>
             <p className="mt-4 text-sm leading-relaxed text-white/80 max-w-xs">
               Accede al centro de control para gestionar propiedades, publicaciones, leads y métricas de tu negocio.
@@ -130,7 +134,7 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-8 text-center text-xs text-slate-400">
-            © {new Date().getFullYear()} ARE Inmobiliaria · Acceso restringido
+            © {new Date().getFullYear()} are REAL ESTATE · Acceso restringido
           </p>
         </div>
 

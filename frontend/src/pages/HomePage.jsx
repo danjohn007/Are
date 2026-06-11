@@ -156,7 +156,7 @@ export default function HomePage() {
                 <div
                   key={f.title}
                   data-aos="fade-up"
-                  className="surface-panel group rounded-2xl p-8 transition hover:border-brand-500 hover:shadow-md"
+                  className="surface-panel group rounded-2xl p-8 cursor-default"
                 >
                   {Icon && <Icon size={36} className="text-brand-500" />}
                   <h3 className="mt-4 font-heading text-lg font-bold text-slate-950">{f.title}</h3>

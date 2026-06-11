@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ImageUpload from '../components/ImageUpload';
@@ -79,6 +80,7 @@ function tryJson(str, fallback) {
 
 export default function DashboardPage() {
   const { logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState('metrics');
   const [metrics, setMetrics] = useState(null);
   const [articles, setArticles] = useState([]);
@@ -301,6 +303,11 @@ export default function DashboardPage() {
     }
   }
 
+  function handleLogout() {
+    logout();
+    navigate('/login', { replace: true });
+  }
+
   async function toggleServiceActive(s) {
     await api.put(`/services/${s.id}`, {
       name: s.name, slug: s.slug, description: s.description,
@@ -377,10 +384,10 @@ export default function DashboardPage() {
       <aside className="flex h-full w-60 shrink-0 flex-col overflow-hidden bg-slate-950">
 
         {/* Logo */}
-        <div className="flex shrink-0 items-center justify-center border-b border-white/10 px-5 py-5">
+          <div className="flex shrink-0 items-center justify-center border-b border-white/10 px-5 py-5">
           <img
             src={`${import.meta.env.BASE_URL}color_are.png`}
-            alt="ARE Inmobiliaria"
+            alt="are REAL ESTATE"
             className="h-20 w-auto object-contain brightness-0 invert"
           />
         </div>
@@ -437,7 +444,7 @@ export default function DashboardPage() {
         {/* Logout - siempre visible */}
         <div className="shrink-0 border-t border-white/10 px-3 py-3">
           <button
-            onClick={logout}
+            onClick={handleLogout}
             type="button"
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600/20 px-3 py-2.5 text-sm font-bold text-red-400 transition hover:bg-red-600 hover:text-white font-heading"
           >

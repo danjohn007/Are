@@ -1,169 +1,81 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import api from '../services/api';
 import PropertyCard from '../components/PropertyCard';
 
 const fallbackImage = 'https://images.unsplash.com/photo-1570129477492-45c003edd2be';
 
-// ─── Brochure download ───────────────────────────────────────────────────────
-function buildBrochureHTML(item, priceLabel, badgeLabel) {
-  // "Admin-selected" photos in Tokko = regular photos (is_blueprint: false)
-  const brochurePhotos = (item.photos || []).filter((p) => !p.is_blueprint);
-  const photosToShow = brochurePhotos.length ? brochurePhotos : (item.photos || []).slice(0, 12);
+const SITE_CONTACT = {
+  name: 'are REAL ESTATE',
+  email: 'info@are.mx',
+  phoneLabel: '442 707 0872',
+  phoneHref: 'tel:+524427070872',
+  hours: 'Lunes–Viernes: 9am – 7pm',
+  address: 'Prol. Bernardo Quintana No. 300 || Piso 14-A || Torre 57 || Centro Sur || CP 76190 || Querétaro, Qro.',
+};
 
-  const rows = [
-    ['Tipo de propiedad', translateTokkoValue(item.property_type)],
-    ['Operación', badgeLabel],
-    ['Referencia', item.reference_code],
-    ['Ciudad', item.city],
-    ['Dirección', item.address],
-    ['Ubicación', item.location_full && item.location_full !== item.address ? item.location_full : null],
-    ['Código postal', item.details?.zip_code],
-    ['Superficie total', item.area ? `${Number(item.area).toLocaleString('es-MX')} m²` : null],
-    ['Superficie techada', item.details?.roofed_surface ? `${Number(item.details.roofed_surface).toLocaleString('es-MX')} m²` : null],
-    ['Recámaras', item.bedrooms || null],
-    ['Baños', item.bathrooms || null],
-    ['Estacionamientos', item.details?.parking_lot_amount || null],
-    ['Condición', translateTokkoValue(item.details?.property_condition)],
-    ['Antigüedad', item.details?.age || null],
-    ['Gastos / mantenimiento', item.details?.expenses ? `$${Number(item.details.expenses).toLocaleString('es-MX')} MXN` : null],
-    ['Crédito elegible', translateTokkoValue(item.details?.credit_eligible)],
-  ].filter(([, v]) => v !== null && v !== undefined && v !== '');
+const API_BASE = (import.meta.env.VITE_API_URL || '/backare/api').replace(/\/+$/, '');
 
-  // Split rows into two columns for landscape layout
-  const half = Math.ceil(rows.length / 2);
-  const col1 = rows.slice(0, half);
-  const col2 = rows.slice(half);
-  const detailsHtml = rows.length
-    ? `<div class="section"><h2>Detalles de la propiedad</h2><div class="two-col"><table class="details-table">${col1.map(([l, v]) => `<tr><th>${l}</th><td>${v}</td></tr>`).join('')}</table><table class="details-table">${col2.map(([l, v]) => `<tr><th>${l}</th><td>${v}</td></tr>`).join('')}</table></div></div>`
-    : '';
-
-  const tagsHtml = (item.tags || []).length
-    ? `<div class="section"><h2>Amenidades y características</h2><div class="tags">${item.tags.map((t) => `<span class="tag">${translateTokkoValue(t)}</span>`).join('')}</div></div>`
-    : '';
-
-  const galleryHtml = photosToShow.length
-    ? `<div class="section"><h2>Imágenes</h2><div class="gallery">${photosToShow.map((p) => `<div class="gallery-item"><img src="${p.original || p.image}" alt="" /></div>`).join('')}</div></div>`
-    : '';
-
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>${item.title || 'Ficha de propiedad'} — ARE Inmobiliaria</title>
-<style>
-  @page { size: A4 landscape; margin: 12mm 16mm; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1a1a2e; background: #fff; font-size: 13px; }
-  /* Header */
-  .header { background: #1a1a2e; color: #fff; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; border-radius: 10px; margin-bottom: 14px; }
-  .header .brand { font-size: 20px; font-weight: 900; letter-spacing: 0.08em; }
-  .header .brand span { color: #e67e22; }
-  .header .date { font-size: 11px; color: rgba(255,255,255,0.6); }
-  /* Top row: hero left + price+stats right */
-  .top-row { display: flex; gap: 16px; margin-bottom: 14px; align-items: stretch; }
-  .hero { flex: 1; }
-  .badge { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; background: #e67e22; color: #fff; margin-bottom: 8px; }
-  .hero h1 { font-size: 20px; font-weight: 900; line-height: 1.25; color: #1a1a2e; }
-  .hero .address { margin-top: 5px; font-size: 12px; color: #6b7280; }
-  .right-panel { display: flex; flex-direction: column; gap: 10px; min-width: 240px; }
-  .price-block { background: #1a1a2e; color: #fff; border-radius: 12px; padding: 14px 18px; }
-  .price-block .label { font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: rgba(255,255,255,0.7); }
-  .price-block .price { font-size: 22px; font-weight: 900; margin-top: 3px; }
-  .stats { display: flex; gap: 8px; flex-wrap: wrap; }
-  .stat { background: #f3f4f6; border-radius: 10px; padding: 8px 14px; font-size: 12px; flex: 1; min-width: 70px; text-align: center; }
-  .stat strong { display: block; font-size: 16px; font-weight: 800; color: #1a1a2e; }
-  /* Sections */
-  .section { margin-bottom: 14px; }
-  .section h2 { font-size: 13px; font-weight: 800; color: #1a1a2e; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid #e67e22; }
-  .description { font-size: 12px; line-height: 1.7; color: #374151; white-space: pre-line; max-height: 80px; overflow: hidden; }
-  /* Details two-column */
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .details-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .details-table tr { border-bottom: 1px solid #f0f0f0; }
-  .details-table tr:last-child { border-bottom: none; }
-  .details-table th { text-align: left; padding: 5px 8px 5px 0; color: #9ca3af; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; width: 45%; }
-  .details-table td { padding: 5px 0; font-weight: 600; color: #1a1a2e; }
-  /* Tags */
-  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
-  .tag { background: #fef3e2; color: #b45309; border-radius: 999px; padding: 4px 11px; font-size: 11px; font-weight: 600; }
-  /* Gallery — 4 columns landscape */
-  .gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .gallery-item img { width: 100%; height: 150px; object-fit: cover; border-radius: 8px; display: block; }
-  /* Footer */
-  .footer { margin-top: 14px; background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 10px 0 0; display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; }
-  /* Print */
-  @media print {
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    .gallery { page-break-inside: avoid; }
-  }
-</style>
-</head>
-<body>
-<div class="header">
-  <div class="brand">ARE <span>Inmobiliaria</span></div>
-  <div class="date">Generado el ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-</div>
-
-<div class="top-row">
-  <div class="hero">
-    <span class="badge">${badgeLabel}</span>
-    <h1>${item.title || 'Propiedad'}</h1>
-    <p class="address">${[item.address, item.location_full && item.location_full !== item.address ? item.location_full : null, item.city].filter(Boolean).join(' · ')}</p>
-    ${item.description ? `<div class="section" style="margin-top:12px"><h2>Descripción</h2><p class="description">${item.description.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p></div>` : ''}
-  </div>
-  <div class="right-panel">
-    <div class="price-block">
-      <p class="label">Precio</p>
-      <p class="price">${priceLabel}</p>
-    </div>
-    <div class="stats">
-      ${item.area ? `<div class="stat"><strong>${Number(item.area).toLocaleString('es-MX')} m²</strong>Superficie</div>` : ''}
-      ${item.bedrooms ? `<div class="stat"><strong>${item.bedrooms}</strong>Recámaras</div>` : ''}
-      ${item.bathrooms ? `<div class="stat"><strong>${item.bathrooms}</strong>Baños</div>` : ''}
-      ${item.details?.parking_lot_amount ? `<div class="stat"><strong>${item.details.parking_lot_amount}</strong>Cajones</div>` : ''}
-    </div>
-  </div>
-</div>
-
-${detailsHtml}
-${tagsHtml}
-${galleryHtml}
-
-<div class="footer">
-  <span>ARE Inmobiliaria — Ficha de propiedad</span>
-  ${item.reference_code ? `<span>Ref: ${item.reference_code}</span>` : ''}
-</div>
-</body>
-</html>`;
+function buildPropertyAssetProxyUrl(propertyId, photoIndex) {
+  return `${API_BASE}/properties/${encodeURIComponent(propertyId)}/asset/${encodeURIComponent(photoIndex)}`;
 }
 
-function downloadPropertyBrochure(item) {
-  const priceLabel = Number(item.price) > 0
-    ? `$${Number(item.price).toLocaleString('es-MX')} MXN`
-    : 'Consultar precio';
-  const badgeLabel = item.listing_kind === 'development' ? 'Desarrollo'
-    : item.operation_type === 'renta' ? 'En Renta' : 'En Venta';
+function normalizePropertyDescription(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
 
-  const html = buildBrochureHTML(item, priceLabel, badgeLabel);
+  return text
+    .replace(/(?:\r?\n|\s)*(?:sí|si)\s*,?\s*(?:lo\s+somos|nosotros\s+somos)\s*$/iu, '\n\nYes, we are')
+    .replace(/yes\s*,?\s*we\s+are/giu, 'Yes, we are')
+    .trim();
+}
 
-  // Use a hidden iframe — no new tab, user stays on the page, triggers print immediately
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;border:none;opacity:0;pointer-events:none';
-  document.body.appendChild(iframe);
+// ─── Property documents and generated PDF preview ─────────────────────────
+function isUsableDocumentUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  try {
+    const parsed = new URL(value.trim());
+    return ['http:', 'https:'].includes(parsed.protocol) && parsed.pathname && parsed.pathname !== '/';
+  } catch {
+    return false;
+  }
+}
 
-  const doc = iframe.contentDocument || iframe.contentWindow.document;
-  doc.open();
-  doc.write(html);
-  doc.close();
+function normalizeTokkoFile(file, index = 0) {
+  if (!file) return null;
 
-  // Give the iframe a moment to render, then print
-  iframe.onload = () => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    // Remove iframe after print dialog closes (or after a safe delay)
-    setTimeout(() => document.body.removeChild(iframe), 2000);
-  };
+  if (typeof file === 'string') {
+    const url = file.trim();
+    if (!isUsableDocumentUrl(url)) return null;
+    return {
+      url,
+      title: `Documento ${index + 1}`,
+      mimeType: '',
+      isPdf: /\.pdf(?:$|[?#])/i.test(url),
+    };
+  }
+
+  const url = [
+    file.download_url,
+    file.secure_url,
+    file.url,
+    file.href,
+    file.file,
+    file.path,
+  ].find((value) => isUsableDocumentUrl(value))?.trim();
+
+  if (!url) return null;
+
+  const title = String(
+    file.title || file.name || file.description || file.filename || `Documento ${index + 1}`
+  ).trim();
+  const mimeType = String(file.mime_type || file.content_type || file.type || '').toLowerCase();
+  const isPdf = mimeType.includes('pdf')
+    || /\.pdf(?:$|[?#])/i.test(url)
+    || /(?:pdf|ficha|brochure)/i.test(title);
+
+  return { url, title, mimeType, isPdf };
 }
 
 function getYouTubeId(url) {
@@ -211,24 +123,54 @@ function formatValue(value, suffix = '') {
 }
 
 function toNumber(value) {
-  const num = Number(value);
+  if (value === null || value === undefined || value === '') return 0;
+  // Accept numbers or strings like "120", "120.5", "120 m2", "120m²"
+  const cleaned = String(value).replace(/[^0-9.,-]/g, '').replace(/,/g, '.');
+  const num = Number(cleaned);
   return Number.isFinite(num) ? num : 0;
 }
 
-function formatAreaInBestUnit(value) {
-  const area = toNumber(value);
-  if (!area) {
-    return 'No disponible';
+function firstPositiveNumber(...values) {
+  for (const value of values) {
+    const number = toNumber(value);
+    if (number > 0) return number;
   }
-  if (area >= 10000) {
-    return `${(area / 10000).toLocaleString('es-MX', { maximumFractionDigits: 3 })} ha`;
-  }
-  return `${area.toLocaleString('es-MX')} m²`;
+  return 0;
 }
 
+function isInvalidTokkoDisplayValue(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized === ''
+    || normalized === 'array'
+    || normalized === 'undefined'
+    || normalized === 'null'
+    || normalized.includes('arqus-alliance')
+    || normalized.includes('mymemory warning')
+    || normalized.includes('query length limit');
+}
+
+function hasDisplayValue(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string' && isInvalidTokkoDisplayValue(value)) return false;
+  if (typeof value === 'number' && value <= 0) return false;
+  if (typeof value === 'string' && /^0(?:[.,]0+)?$/.test(value.trim())) return false;
+  return true;
+}
+
+function formatAge(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = toNumber(value);
+  if (numeric === 0 && String(value).trim() === '0') return 'A estrenar';
+  if (numeric > 0 && /^\d+(?:[.,]\d+)?$/.test(String(value).trim())) {
+    return `${numeric.toLocaleString('es-MX')} año${numeric === 1 ? '' : 's'}`;
+  }
+  return value;
+}
+
+
 function parseGeo(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+  const n = toNumber(value);
+  return n ? n : null;
 }
 
 const TOKKO_TRANSLATIONS = {
@@ -252,11 +194,24 @@ const TOKKO_TRANSLATIONS = {
   'for rent': 'En renta',
   rented: 'Rentado',
   sold: 'Vendido',
+  empty: 'Desocupado',
+  vacant: 'Desocupado',
+  unoccupied: 'Desocupado',
+  occupied: 'Ocupado',
+  available: 'Disponible',
+  'owner occupied': 'Ocupado por el propietario',
+  'tenant occupied': 'Ocupado por inquilino',
   // credit_eligible
   yes: 'Sí',
   no: 'No',
   true: 'Sí',
   false: 'No',
+  'not specified': 'No especificado',
+  unspecified: 'No especificado',
+  'not available': 'No disponible',
+  unknown: 'No especificado',
+  none: 'Ninguno',
+  'n a': 'No especificado',
   // disposition / land shape
   irregular: 'Irregular',
   rectangular: 'Rectangular',
@@ -405,6 +360,10 @@ const TOKKO_TRANSLATIONS = {
   northwest: 'Noroeste',
   southeast: 'Sureste',
   southwest: 'Suroeste',
+  'north east': 'Noreste',
+  'north west': 'Noroeste',
+  'south east': 'Sureste',
+  'south west': 'Suroeste',
   front: 'Frente',
   back: 'Trasero',
   interior: 'Interior',
@@ -545,8 +504,36 @@ const TOKKO_TRANSLATIONS = {
 
 function translateTokkoValue(value) {
   if (value === null || value === undefined || value === '') return value;
-  const normalized = String(value).toLowerCase().trim().replace(/_/g, ' ');
-  return TOKKO_TRANSLATIONS[normalized] ?? value;
+  if (isInvalidTokkoDisplayValue(value)) return null;
+  const normalized = String(value).toLowerCase().trim().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  const translated = TOKKO_TRANSLATIONS[normalized] ?? value;
+  return isInvalidTokkoDisplayValue(translated) ? null : translated;
+}
+
+function categorizePdfTags(tags = []) {
+  const translated = tags
+    .map((tag) => translateTokkoValue(tag))
+    .filter((tag) => hasDisplayValue(tag))
+    .map((tag) => String(tag).trim());
+
+  const servicePattern = /electric|internet|tel[eé]fono|agua|gas|drenaje|alcantarillado|alumbrado|paviment|seguridad|cctv|vigilancia|mantenimiento|planta de luz|energ[ií]a|cisterna/i;
+  const spacePattern = /baño|bodega|patio|terraza|jard[ií]n|rec[aá]mara|cocina|sala|comedor|oficina|lobby|vest[ií]bulo|roof|estacionamiento|cochera|balc[oó]n|and[eé]n|local|sal[oó]n/i;
+
+  const services = [];
+  const spaces = [];
+  const features = [];
+
+  translated.forEach((tag) => {
+    if (servicePattern.test(tag)) services.push(tag);
+    else if (spacePattern.test(tag)) spaces.push(tag);
+    else features.push(tag);
+  });
+
+  return {
+    services: [...new Set(services)],
+    spaces: [...new Set(spaces)],
+    features: [...new Set(features)],
+  };
 }
 
 function MapTiles({ lat, lon, zoom = 15 }) {
@@ -598,9 +585,13 @@ export default function PropertyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
-  const [showFullDescription, setShowFullDescription] = useState(false);
   const [units, setUnits] = useState([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [pdfObjectUrl, setPdfObjectUrl] = useState('');
+  const [pdfFilename, setPdfFilename] = useState('ficha-propiedad.pdf');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState('');
 
 
   useEffect(() => {
@@ -612,7 +603,10 @@ export default function PropertyDetailPage() {
         const nextItem = response.data.data || null;
         setItem(nextItem);
         setActiveIndex(0);
-        setShowFullDescription(false);
+        setPdfPreviewOpen(false);
+        setPdfError('');
+        setPdfObjectUrl('');
+        setPdfFilename('ficha-propiedad.pdf');
       } catch (_error) {
         setError('No pudimos cargar este registro.');
       } finally {
@@ -622,6 +616,27 @@ export default function PropertyDetailPage() {
 
     fetchItem();
   }, [id]);
+
+  useEffect(() => () => {
+    if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
+  }, [pdfObjectUrl]);
+
+  useEffect(() => {
+    if (!pdfPreviewOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setPdfPreviewOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [pdfPreviewOpen]);
 
   useEffect(() => {
     if (!item || item.listing_kind !== 'development') return;
@@ -676,9 +691,91 @@ export default function PropertyDetailPage() {
   const geoLong = parseGeo(item.details?.geo_long);
   const hasCoords = geoLat !== null && geoLong !== null;
   const mapLink = hasCoords ? `https://www.google.com/maps?q=${geoLat},${geoLong}` : null;
-  const pricePerM2 = item.details?.price_per_m2 || (toNumber(item.price) > 0 && toNumber(item.area) > 0 ? (toNumber(item.price) / toNumber(item.area)).toFixed(2) : null);
+  const primaryArea = firstPositiveNumber(
+    item.area,
+    item.details?.total_surface,
+    item.details?.roofed_surface,
+    item.details?.private_area,
+    item.details?.unroofed_surface,
+  );
+  const explicitPricePerM2 = toNumber(item.details?.price_per_m2);
+  const calculatedPricePerM2 = toNumber(item.price) > 0 && primaryArea > 0 ? toNumber(item.price) / primaryArea : 0;
+  const pricePerM2 = explicitPricePerM2 > 0 ? explicitPricePerM2 : calculatedPricePerM2;
   const displayPrice = toNumber(item.price) > 0 ? `$${toNumber(item.price).toLocaleString('es-MX')} MXN` : 'Consultar precio';
-  const shortDescription = (item.description || '').slice(0, 600);
+  const displayDescription = normalizePropertyDescription(item.description);
+  const openPropertyPdfPreview = async () => {
+    if (pdfLoading) return;
+
+    setPdfLoading(true);
+    setPdfError('');
+    try {
+      const tagGroups = categorizePdfTags(item.tags || []);
+      const pdfPhotoSource = item.photos?.length
+        ? item.photos
+        : item.image_url
+          ? [{ original: item.image_url }]
+          : [];
+      const photoUrls = pdfPhotoSource
+        .map((photo, photoIndex) => ({
+          source: photo?.original || photo?.image || photo?.thumb,
+          photoIndex,
+        }))
+        .filter(({ source }) => typeof source === 'string' && /^https?:\/\//i.test(source))
+        .map(({ photoIndex }) => buildPropertyAssetProxyUrl(id, photoIndex));
+
+      const general = [
+        { label: 'Plantas', value: item.details?.floors_amount || item.details?.floor },
+        { label: 'Zonificación', value: item.details?.zonification },
+        { label: 'Orientación', value: translateTokkoValue(item.details?.orientation) },
+        { label: 'Condición', value: translateTokkoValue(item.details?.property_condition) },
+        { label: 'Antigüedad', value: formatAge(item.details?.age) },
+        { label: 'Situación', value: translateTokkoValue(item.details?.situation) },
+        { label: 'Baños', value: toNumber(item.bathrooms) > 0 ? toNumber(item.bathrooms) : null },
+        { label: 'Estacionamientos', value: toNumber(item.details?.parking_lot_amount) > 0 ? toNumber(item.details?.parking_lot_amount) : null },
+      ].filter((entry) => hasDisplayValue(entry.value));
+
+      const surfaces = [
+        { label: 'Terreno', value: primaryArea > 0 ? `${primaryArea.toLocaleString('es-MX')} m²` : null },
+        { label: 'Superficie cubierta', value: toNumber(item.details?.roofed_surface) > 0 ? `${toNumber(item.details?.roofed_surface).toLocaleString('es-MX')} m²` : null },
+        { label: 'Fondo', value: toNumber(item.details?.depth_measure || item.details?.land_length) > 0 ? `${toNumber(item.details?.depth_measure || item.details?.land_length).toLocaleString('es-MX')} m` : null },
+        { label: 'Frente', value: toNumber(item.details?.front_measure || item.details?.land_width) > 0 ? `${toNumber(item.details?.front_measure || item.details?.land_width).toLocaleString('es-MX')} m` : null },
+      ].filter((entry) => hasDisplayValue(entry.value));
+
+      const { createPropertyPdf } = await import('../utils/propertyPdf.js');
+      const result = await createPropertyPdf({
+        reference: item.reference_code || `ARE-${id}`,
+        propertyType: translateTokkoValue(item.property_type) || 'Propiedad',
+        title: item.title || 'Propiedad',
+        location: item.location_full || item.city || item.address || '',
+        address: item.address || item.location_full || item.city || '',
+        operation: badgeLabel.replace(/^En\s+/i, ''),
+        price: displayPrice,
+        description: displayDescription,
+        general,
+        surfaces,
+        services: tagGroups.services,
+        spaces: tagGroups.spaces.length ? tagGroups.spaces : tagGroups.features.slice(0, 6),
+        photoUrls,
+        logoUrl: `${import.meta.env.BASE_URL}color_are.png`,
+        contactName: SITE_CONTACT.name,
+        contactPhone: SITE_CONTACT.phoneLabel,
+        contactEmail: SITE_CONTACT.email,
+        website: 'are.mx',
+      });
+
+      if (pdfObjectUrl) URL.revokeObjectURL(pdfObjectUrl);
+      const nextObjectUrl = URL.createObjectURL(result.blob);
+      setPdfObjectUrl(nextObjectUrl);
+      setPdfFilename(result.filename);
+      setPdfPreviewOpen(true);
+    } catch (error) {
+      console.error('No fue posible generar la ficha PDF:', error);
+      setPdfError('No fue posible generar la ficha PDF. Intenta nuevamente en unos segundos.');
+      setPdfPreviewOpen(false);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const detailEntries = [
     ['Tipo', translateTokkoValue(item.property_type)],
@@ -687,36 +784,29 @@ export default function PropertyDetailPage() {
     ['Ubicación', item.location_full || item.address || item.city],
     ['Dirección', item.address],
     ['Código postal', item.details?.zip_code],
-    ['Superficie total', formatValue(Number(item.area || item.details?.total_surface || 0).toLocaleString('es-MX'), ' m²')],
-    ['Superficie techada', item.details?.roofed_surface ? `${Number(item.details.roofed_surface).toLocaleString('es-MX')} m²` : null],
-    ['Superficie sin techar', item.details?.unroofed_surface ? `${Number(item.details.unroofed_surface).toLocaleString('es-MX')} m²` : null],
-    ['Área privada', item.details?.private_area ? `${Number(item.details.private_area).toLocaleString('es-MX')} m²` : null],
-    ['Estacionamientos', item.details?.parking_lot_amount],
-    ['Recámaras', item.bedrooms],
-    ['Baños', item.bathrooms],
+    ['Superficie total', primaryArea > 0 ? `${primaryArea.toLocaleString('es-MX')} m²` : null],
+    ['Superficie techada', toNumber(item.details?.roofed_surface) > 0 ? `${toNumber(item.details.roofed_surface).toLocaleString('es-MX')} m²` : null],
+    ['Superficie sin techar', toNumber(item.details?.unroofed_surface) > 0 ? `${toNumber(item.details.unroofed_surface).toLocaleString('es-MX')} m²` : null],
+    ['Área privada', toNumber(item.details?.private_area) > 0 ? `${toNumber(item.details.private_area).toLocaleString('es-MX')} m²` : null],
+    ['Estacionamientos', toNumber(item.details?.parking_lot_amount) > 0 ? toNumber(item.details?.parking_lot_amount) : null],
+    ['Recámaras', toNumber(item.bedrooms) > 0 ? toNumber(item.bedrooms) : null],
+    ['Baños', toNumber(item.bathrooms) > 0 ? toNumber(item.bathrooms) : null],
     ['Condición', translateTokkoValue(item.details?.property_condition)],
     ['Situación', translateTokkoValue(item.details?.situation)],
-    ['Antigüedad', item.details?.age],
+    ['Antigüedad', formatAge(item.details?.age)],
     ['Fecha de construcción', item.details?.construction_date],
-    ['Gastos / mantenimiento', item.details?.expenses ? `$${Number(item.details.expenses).toLocaleString('es-MX')} MXN` : null],
-  ].filter(([, value]) => value !== null && value !== undefined && value !== '' && value !== '0');
+    ['Gastos / mantenimiento', toNumber(item.details?.expenses) > 0 ? `$${toNumber(item.details.expenses).toLocaleString('es-MX')} MXN` : null],
+  ].filter(([, value]) => hasDisplayValue(value));
 
   const generalInfo = [
     ['Zonificación', item.details?.zonification],
-    ['Antigüedad', item.details?.age],
-    ['$ x m²', pricePerM2 ? `$${toNumber(pricePerM2).toLocaleString('es-MX')}` : null],
+    ['$ x m²', pricePerM2 > 0 ? `$${pricePerM2.toLocaleString('es-MX', { maximumFractionDigits: 2 })}` : null],
     ['Forma de terreno', translateTokkoValue(item.details?.disposition)],
-    ['Topografía', translateTokkoValue(item.details?.orientation)],
+    ['Orientación', translateTokkoValue(item.details?.orientation)],
     ['Crédito elegible', translateTokkoValue(item.details?.credit_eligible)],
-  ].filter(([, value]) => value !== null && value !== undefined && value !== '');
+  ].filter(([, value]) => hasDisplayValue(value));
 
-  const surfaces = [
-    ['Terreno', formatAreaInBestUnit(item.area || item.details?.total_surface)],
-    ['Fondo', item.details?.depth_measure ? `${toNumber(item.details.depth_measure).toLocaleString('es-MX')} m` : null],
-    ['Frente', item.details?.front_measure ? `${toNumber(item.details.front_measure).toLocaleString('es-MX')} m` : null],
-    ['Techada', item.details?.roofed_surface ? `${toNumber(item.details.roofed_surface).toLocaleString('es-MX')} m²` : null],
-    ['Sin techar', item.details?.unroofed_surface ? `${toNumber(item.details.unroofed_surface).toLocaleString('es-MX')} m²` : null],
-  ].filter(([, value]) => value !== null && value !== undefined && value !== '' && value !== 'No disponible');
+
 
   return (
     <section className="section-shell py-14 lg:py-16">
@@ -887,6 +977,22 @@ export default function PropertyDetailPage() {
           </section>
         )}
 
+
+        <aside className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
+          <h3 className="font-heading text-xl font-bold text-slate-950">Contacto</h3>
+          <div className="mt-4 space-y-2 text-sm text-slate-700">
+            <p className="font-semibold text-slate-900">{SITE_CONTACT.name}</p>
+            <p>
+              <a href={`mailto:${SITE_CONTACT.email}`} className="text-brand-600 hover:underline">{SITE_CONTACT.email}</a>
+            </p>
+            <p>
+              <a href={SITE_CONTACT.phoneHref} className="text-brand-600 hover:underline">{SITE_CONTACT.phoneLabel}</a>
+            </p>
+            <p>{SITE_CONTACT.hours}</p>
+            <p>{SITE_CONTACT.address}</p>
+          </div>
+        </aside>
+
         </div>
 
         <div className="space-y-6 lg:space-y-7">
@@ -895,18 +1001,29 @@ export default function PropertyDetailPage() {
               {badgeLabel}
             </span>
             <h1 className="mt-5 font-heading text-3xl font-black text-slate-950 md:text-4xl">{item.title}</h1>
-            <p className="mt-3 text-base text-gray-500">{item.address || item.city || 'Ubicación no disponible'}</p>
+            <p className="mt-3 text-base text-gray-500">{item.location_full || item.address || item.city || 'Ubicación no disponible'}</p>
 
-            {item.location_full && item.location_full !== item.address && (
-              <p className="mt-2 text-sm text-gray-500">{item.location_full}</p>
-            )}
 
-            <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-600">
-              <span className="rounded-full bg-gray-100 px-4 py-2">Ciudad: {item.city || 'No disponible'}</span>
-              <span className="rounded-full bg-gray-100 px-4 py-2">Terreno: {Number(item.area || 0).toLocaleString('es-MX')} m²</span>
-              <span className="rounded-full bg-gray-100 px-4 py-2">Recámaras: {item.bedrooms || 0}</span>
-              <span className="rounded-full bg-gray-100 px-4 py-2">Baños: {item.bathrooms || 0}</span>
-            </div>
+            {(() => {
+              const areaNum = primaryArea;
+              const beds = toNumber(item.bedrooms || 0);
+              const baths = toNumber(item.bathrooms || 0);
+              const parts = [];
+              if (item.city) parts.push(`Ciudad: ${item.city}`);
+              if (areaNum > 0) parts.push(`Terreno: ${areaNum.toLocaleString('es-MX')} m²`);
+              if (beds > 0) parts.push(`Recámaras: ${beds}`);
+              if (baths > 0) parts.push(`Baños: ${baths}`);
+
+              if (parts.length === 0) return null;
+
+              return (
+                <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-600">
+                  {parts.map((p) => (
+                    <span key={p} className="rounded-full bg-gray-100 px-4 py-2">{p}</span>
+                  ))}
+                </div>
+              );
+            })()}
 
             <div className="mt-8 rounded-2xl bg-slate-950 px-6 py-5 text-white">
               <p className="text-xs uppercase tracking-[0.3em] text-white/85">Precio</p>
@@ -924,32 +1041,32 @@ export default function PropertyDetailPage() {
               </Link>
               <button
                 type="button"
-                onClick={() => downloadPropertyBrochure(item)}
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 font-semibold text-slate-700 shadow-sm transition hover:border-brand-500 hover:text-brand-500"
+                onClick={openPropertyPdfPreview}
+                disabled={pdfLoading}
+                title="Generar vista previa de la ficha en PDF"
+                className={`inline-flex items-center gap-2 rounded-xl border px-6 py-3 font-semibold shadow-sm transition ${
+                  !pdfLoading
+                    ? 'border-gray-200 bg-white text-slate-700 hover:border-brand-500 hover:text-brand-500'
+                    : 'cursor-wait border-gray-100 bg-gray-50 text-gray-400'
+                }`}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
                 </svg>
-                Descargar información
+                {pdfLoading ? 'Generando ficha...' : 'Vista previa de ficha PDF'}
               </button>
             </div>
+            {pdfError && (
+              <p className="mt-3 text-sm font-medium text-red-600">{pdfError}</p>
+            )}
 
           </div>
 
           <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
             <h2 className="font-heading text-xl font-bold text-slate-950">Descripción</h2>
-            <p className="mt-3 whitespace-pre-line text-base leading-7 text-gray-700">
-              {showFullDescription ? (item.description || 'Sin descripción disponible por el momento.') : (shortDescription || 'Sin descripción disponible por el momento.')}
+            <p className="mt-3 whitespace-pre-line break-words text-base leading-7 text-gray-700">
+              {displayDescription || 'Sin descripción disponible por el momento.'}
             </p>
-            {(item.description || '').length > 600 && (
-              <button
-                type="button"
-                onClick={() => setShowFullDescription((v) => !v)}
-                className="mt-3 text-sm font-semibold text-brand-700 transition hover:text-brand-500"
-              >
-                {showFullDescription ? 'Mostrar menos' : 'Mostrar más'}
-              </button>
-            )}
             {/* Botón visible en móvil (oculto en pantallas grandes donde ya aparece en el panel derecho) */}
             <Link
               to={`/contact?property_id=${item.id}&property_title=${encodeURIComponent(item.title || 'esta propiedad')}`}
@@ -988,18 +1105,7 @@ export default function PropertyDetailPage() {
             </section>
           )}
 
-          {(item.details?.branch?.name || item.details?.branch?.email || item.details?.branch?.phone || item.details?.branch?.address) && (
-            <aside className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
-              <h3 className="font-heading text-xl font-bold text-slate-950">Contacto</h3>
-              <div className="mt-4 space-y-2 text-sm text-slate-700">
-                {item.details?.branch?.name && <p className="font-semibold text-slate-900">{item.details.branch.name}</p>}
-                {item.details?.branch?.email && <p>{item.details.branch.email}</p>}
-                {item.details?.branch?.phone && <p>{item.details.branch.phone}</p>}
-                {item.details?.branch?.contact_time && <p>{item.details.branch.contact_time}</p>}
-                {item.details?.branch?.address && <p>{item.details.branch.address}</p>}
-              </div>
-            </aside>
-          )}
+
 
           {/* Development-specific block */}
           {isDevelopment && (
@@ -1069,35 +1175,27 @@ export default function PropertyDetailPage() {
 
 
 
-          {surfaces.length > 0 && (
-            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
-              <h2 className="font-heading text-xl font-bold text-slate-950">Superficies y medidas</h2>
-              <div className="mt-4 grid gap-3 rounded-2xl bg-gray-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
-                {surfaces.map(([label, value]) => (
-                  <div key={label} className="rounded-xl bg-white px-4 py-3 shadow-sm">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">{label}</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+
 
           {item.files?.length > 0 && (
             <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
               <h2 className="font-heading text-xl font-bold text-slate-950">Archivos</h2>
               <div className="mt-4 space-y-3">
-                {item.files.map((file, index) => (
-                  <a
-                    key={file.file || index}
-                    href={file.file}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                  >
-                    Documento {index + 1}
-                  </a>
-                ))}
+                {item.files.map((file, index) => {
+                  const normalizedFile = normalizeTokkoFile(file, index);
+                  if (!normalizedFile) return null;
+                  return (
+                    <a
+                      key={`${normalizedFile.url}-${index}`}
+                      href={normalizedFile.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                    >
+                      {normalizedFile.title || `Documento ${index + 1}`}
+                    </a>
+                  );
+                })}
               </div>
             </section>
           )}
@@ -1105,6 +1203,51 @@ export default function PropertyDetailPage() {
 
         </div>
       </div>
+
+      {pdfPreviewOpen && pdfObjectUrl && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 p-2 backdrop-blur-sm sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vista previa de la ficha PDF"
+          onClick={() => setPdfPreviewOpen(false)}
+        >
+          <div
+            className="flex h-[calc(100dvh-1rem)] w-full max-w-[1500px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[calc(100dvh-2rem)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 sm:px-5">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Ficha de propiedad</p>
+                <h3 className="mt-1 truncate font-heading text-base font-bold text-slate-950 sm:text-lg">Vista previa - {item.title}</h3>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <a
+                  href={pdfObjectUrl}
+                  download={pdfFilename}
+                  className="inline-flex rounded-xl bg-brand-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-brand-700"
+                >
+                  Descargar PDF
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPdfPreviewOpen(false)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-xl text-slate-600 transition hover:bg-gray-100"
+                  aria-label="Cerrar vista previa"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={`${pdfObjectUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+              title="Vista previa de la ficha PDF de la propiedad"
+              className="min-h-0 w-full flex-1 bg-slate-200"
+            />
+          </div>
+        </div>,
+        document.body,
+      )}
     </section>
   );
 }
