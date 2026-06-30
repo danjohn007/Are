@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import LanguageSelector from './LanguageSelector';
 
 const links = [
   { to: '/', label: 'Inicio' },
@@ -18,14 +19,6 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm">
-      {/* Top bar */}
-      <div className="hidden border-b border-gray-200 surface-dark md:block">
-        <div className="section-shell flex items-center justify-between py-1.5 text-xs text-gray-300">
-          <span>Bienvenido a ARE — Especialistas en Bienes Raíces</span>
-          <span>info@are.mx</span>
-        </div>
-      </div>
-
       {/* Main navbar */}
       <div className="section-shell flex items-center justify-between py-3">
         {/* Logo */}
@@ -57,6 +50,7 @@ export default function Navbar() {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
+          <LanguageSelector />
           {isAuthenticated && (
             <Link
               to="/admin"

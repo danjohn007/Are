@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getAllPaginated } from '../services/api';
+import { getAllPaginated, readListCache, writeListCache } from '../services/api';
 import PropertyCard from '../components/PropertyCard';
 
 function normalize(s) {
@@ -18,6 +18,16 @@ function coloniaFrom(locationFull) {
   return (parts[parts.length - 1] ?? '').trim();
 }
 
+function clearOldPropertiesListCaches(currentKey) {
+  try {
+    Object.keys(sessionStorage)
+      .filter((key) => key.startsWith('are:public:properties:') && key !== currentKey)
+      .forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    // Sin sessionStorage seguimos sin cache local.
+  }
+}
+
 const ChevronDown = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -34,20 +44,40 @@ export default function PropertiesPage() {
   const [error, setError]     = useState('');
 
   useEffect(() => {
+    let mounted = true;
+    const cacheKey = 'are:public:properties:inventory:v8-are-real-estate-visible';
+    clearOldPropertiesListCaches(cacheKey);
+    const cached = readListCache(cacheKey, 300000);
+
+    if (cached) {
+      setAllProperties(cached);
+      setLoading(false);
+    }
+
     async function fetchProperties() {
       try {
-        setLoading(true);
+        if (!cached) setLoading(true);
         setError('');
-        const data = await getAllPaginated('/properties', { listing_kind: 'property' });
+
+        // Un solo request: el backend devuelve propiedades independientes + unidades.
+        const data = await getAllPaginated('/properties', { listing_kind: 'inventory', nocache: '1' }, 500);
+        if (!mounted) return;
+
         setAllProperties(data);
+        writeListCache(cacheKey, data);
       } catch {
-        setAllProperties([]);
-        setError('No pudimos cargar propiedades en este momento. Revisa la URL del API en producción.');
+        if (!mounted) return;
+        if (!cached) {
+          setAllProperties([]);
+          setError('No pudimos cargar propiedades en este momento. Revisa la URL del API en producción.');
+        }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
+
     fetchProperties();
+    return () => { mounted = false; };
   }, []);
 
   // Base subset after operation filter

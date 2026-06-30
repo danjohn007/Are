@@ -35,8 +35,25 @@ function cleanFilename(value) {
   return normalized || 'propiedad';
 }
 
+const EMPTY_VALUES = new Set([
+  '', '-', '--', '---', 'n/a', 'na', 'nd',
+  'array', 'undefined', 'null',
+  'no disponible', 'no especificado', 'sin especificar',
+  'sin informacion', 'sin información', 'desconocido',
+  'agregar un valor o medida',
+]);
+
 function hasValue(value) {
-  return value !== null && value !== undefined && cleanText(value) !== '';
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+
+  const text = cleanText(value);
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return !EMPTY_VALUES.has(normalized)
+    && !/^[-—–]+$/.test(text)
+    && !/^\s*[A-ZÁÉÍÓÚÑ]\s*:\s*[^\n]{1,180}$/u.test(text)
+    && !/^0(?:[.,]0+)?(?:\s*(mxn|usd|m2|m²|m|%))?$/i.test(text);
 }
 
 function drawSectionHeading(doc, title, x, y, width) {
@@ -78,6 +95,31 @@ function drawValueGrid(doc, entries, x, y, width, columns = 3) {
 
   const rows = Math.ceil(valid.length / columns);
   return y + rows * rowHeight + 1.5;
+}
+
+function drawKeyValueList(doc, entries, x, y, width) {
+  const valid = entries.filter((entry) => entry && hasValue(entry.value));
+  if (!valid.length) return y;
+
+  let cursorY = y;
+  valid.forEach((entry) => {
+    const label = cleanText(entry.label);
+    const value = cleanText(entry.value);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.4);
+    doc.setTextColor(...MUTED);
+    doc.text(`${label}:`, x, cursorY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.6);
+    doc.setTextColor(...DARK);
+    const labelWidth = Math.min(36, doc.getTextWidth(`${label}: `) + 2);
+    const lines = doc.splitTextToSize(value, width - labelWidth).slice(0, 3);
+    doc.text(lines, x + labelWidth, cursorY, { lineHeightFactor: 1.15 });
+    cursorY += Math.max(4.6, lines.length * 3.4 + 1.2);
+  });
+
+  return cursorY + 1;
 }
 
 function drawSimpleList(doc, items, x, y, width, columns = 3) {
@@ -246,34 +288,36 @@ function drawFooterNote(doc, x, y, width) {
   doc.text(doc.splitTextToSize(note, width), x, y + 5);
 }
 
-function drawBrandFooter(doc, logoData, data) {
-  const y = 184;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.3);
-  doc.setTextColor(...DARK);
-  doc.text('yes we are', RIGHT_X + 67, y + 8, { align: 'right' });
-  doc.setDrawColor(160, 160, 160);
-  doc.line(RIGHT_X + 70, y + 3, RIGHT_X + 70, y + 11);
+function drawTopLogo(doc, logoData) {
+  const logoX = PAGE_WIDTH - MARGIN - 38;
+  const logoY = 6.2;
 
   if (logoData) {
     try {
-      doc.addImage(logoData, 'PNG', RIGHT_X + 74, y - 2, 49, 20, undefined, 'FAST');
+      doc.addImage(logoData, 'PNG', logoX, logoY, 38, 15.5, undefined, 'FAST');
+      return;
     } catch {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.setTextColor(...BRAND_ORANGE);
-      doc.text('are', RIGHT_X + 88, y + 11);
+      // fallback below
     }
   }
 
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(19);
+  doc.setTextColor(...BRAND_ORANGE);
+  doc.text('are', PAGE_WIDTH - MARGIN, logoY + 11, { align: 'right' });
+}
+
+function drawBrandFooter(doc, _logoData, data) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(4.8);
   doc.setTextColor(...MUTED);
   doc.text(cleanText(data.website || 'are.mx'), PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 4, { align: 'right' });
 }
 
-function drawContinuationPage(doc, descriptionLines, data, logoData, pageIndex) {
+
+function addTextPage(doc, title, lines, data, logoData, pageIndex) {
   doc.addPage('a4', 'landscape');
+  drawTopLogo(doc, logoData);
   doc.setTextColor(...DARK);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
@@ -281,18 +325,26 @@ function drawContinuationPage(doc, descriptionLines, data, logoData, pageIndex) 
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
-  const titleLines = doc.splitTextToSize(cleanText(data.title), PAGE_WIDTH - MARGIN * 2);
+  const titleLines = doc.splitTextToSize(cleanText(data.title), PAGE_WIDTH - MARGIN * 2 - 45);
   doc.text(titleLines.slice(0, 2), MARGIN, 21);
 
   let y = 36;
-  y = drawSectionHeading(doc, pageIndex === 1 ? 'Descripción (continuación)' : 'Descripción', MARGIN, y, PAGE_WIDTH - MARGIN * 2);
+  y = drawSectionHeading(doc, pageIndex === 1 ? `${title} (continuación)` : title, MARGIN, y, PAGE_WIDTH - MARGIN * 2);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.4);
   doc.setTextColor(...DARK);
-  doc.text(descriptionLines, MARGIN, y, { lineHeightFactor: 1.25 });
+  doc.text(lines, MARGIN, y, { lineHeightFactor: 1.25 });
 
   drawFooterNote(doc, MARGIN, 184, 150);
   drawBrandFooter(doc, logoData, data);
+}
+
+function drawDescriptionPages(doc, descriptionLines, data, logoData, firstPageIndex = 1) {
+  const linesPerContinuationPage = 43;
+  for (let offset = 0, pageIndex = firstPageIndex; offset < descriptionLines.length; offset += linesPerContinuationPage, pageIndex += 1) {
+    const pageLines = descriptionLines.slice(offset, offset + linesPerContinuationPage);
+    addTextPage(doc, 'Descripción', pageLines, data, logoData, pageIndex);
+  }
 }
 
 export async function createPropertyPdf(data) {
@@ -321,6 +373,8 @@ export async function createPropertyPdf(data) {
     data.logoUrl ? fetchImageAsPng(data.logoUrl).catch(() => null) : Promise.resolve(null),
   ]);
 
+  drawTopLogo(doc, logoData);
+
   doc.setTextColor(...DARK);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.2);
@@ -335,7 +389,7 @@ export async function createPropertyPdf(data) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.8);
   doc.setTextColor(...MUTED);
-  const locationLines = doc.splitTextToSize(cleanText(data.location), LEFT_WIDTH - 2).slice(0, 2);
+  const locationLines = doc.splitTextToSize(cleanText(data.location), LEFT_WIDTH - 2).slice(0, 3);
   doc.text(locationLines, MARGIN, titleBottom + 1.5, { lineHeightFactor: 1.1 });
 
   const operation = cleanText(data.operation || 'PROPIEDAD').toUpperCase();
@@ -398,8 +452,13 @@ export async function createPropertyPdf(data) {
 
   let y = Math.max(titleBottom + 10, 46);
 
+  if (data.propertyDetails?.some((entry) => hasValue(entry?.value))) {
+    y = drawSectionHeading(doc, 'Detalles de la propiedad', MARGIN, y, LEFT_WIDTH);
+    y = drawKeyValueList(doc, data.propertyDetails, MARGIN, y, LEFT_WIDTH);
+  }
+
   if (data.general?.some((entry) => hasValue(entry?.value))) {
-    y = drawSectionHeading(doc, 'Información general', MARGIN, y, LEFT_WIDTH);
+    y = drawSectionHeading(doc, 'Información general', MARGIN, y + 1, LEFT_WIDTH);
     y = drawValueGrid(doc, data.general, MARGIN, y, LEFT_WIDTH, 3);
   }
 
@@ -408,39 +467,51 @@ export async function createPropertyPdf(data) {
     y = drawValueGrid(doc, data.surfaces, MARGIN, y, LEFT_WIDTH, 3);
   }
 
+  if (data.placeDetails?.some((entry) => hasValue(entry?.value))) {
+    y = drawSectionHeading(doc, 'Descripción del lugar', MARGIN, y + 1, LEFT_WIDTH);
+    y = drawKeyValueList(doc, data.placeDetails, MARGIN, y, LEFT_WIDTH);
+  }
+
   if (data.services?.length) {
     y = drawSectionHeading(doc, 'Servicios', MARGIN, y + 1, LEFT_WIDTH);
-    y = drawSimpleList(doc, data.services.slice(0, 6), MARGIN, y, LEFT_WIDTH, 3);
+    y = drawSimpleList(doc, data.services, MARGIN, y, LEFT_WIDTH, 3);
   }
 
   if (data.spaces?.length) {
     y = drawSectionHeading(doc, 'Espacios', MARGIN, y + 1, LEFT_WIDTH);
-    y = drawSimpleList(doc, data.spaces.slice(0, 6), MARGIN, y, LEFT_WIDTH, 3);
+    y = drawSimpleList(doc, data.spaces, MARGIN, y, LEFT_WIDTH, 3);
   }
 
-  y = drawSectionHeading(doc, 'Descripción', MARGIN, y + 1, LEFT_WIDTH);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(...DARK);
+  if (data.features?.length) {
+    y = drawSectionHeading(doc, 'Amenidades y características', MARGIN, y + 1, LEFT_WIDTH);
+    y = drawSimpleList(doc, data.features, MARGIN, y, LEFT_WIDTH, 3);
+  }
 
   const description = cleanText(data.description || 'Sin descripción disponible.');
   const descriptionLines = doc.splitTextToSize(description, LEFT_WIDTH);
   const lineHeight = 3.2;
   const footerY = 184;
-  const firstPageCapacity = Math.max(2, Math.floor((footerY - y - 5) / lineHeight));
-  const firstPageLines = descriptionLines.slice(0, firstPageCapacity);
-  const remainingLines = descriptionLines.slice(firstPageCapacity);
-  doc.text(firstPageLines, MARGIN, y, { lineHeightFactor: 1.18 });
+
+  let remainingLines = descriptionLines;
+  if (y < footerY - 13) {
+    y = drawSectionHeading(doc, 'Descripción', MARGIN, y + 1, LEFT_WIDTH);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...DARK);
+
+    const firstPageCapacity = Math.max(0, Math.floor((footerY - y - 5) / lineHeight));
+    const firstPageLines = descriptionLines.slice(0, firstPageCapacity);
+    remainingLines = descriptionLines.slice(firstPageCapacity);
+    if (firstPageLines.length) {
+      doc.text(firstPageLines, MARGIN, y, { lineHeightFactor: 1.18 });
+    }
+  }
 
   drawFooterNote(doc, MARGIN, footerY, LEFT_WIDTH);
   drawBrandFooter(doc, logoData, data);
 
   if (remainingLines.length) {
-    const linesPerContinuationPage = 43;
-    for (let offset = 0, pageIndex = 1; offset < remainingLines.length; offset += linesPerContinuationPage, pageIndex += 1) {
-      const pageLines = remainingLines.slice(offset, offset + linesPerContinuationPage);
-      drawContinuationPage(doc, pageLines, data, logoData, pageIndex);
-    }
+    drawDescriptionPages(doc, remainingLines, data, logoData, 1);
   }
 
   return {

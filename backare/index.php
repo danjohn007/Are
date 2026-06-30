@@ -1,12 +1,21 @@
 <?php
-
 declare(strict_types=1);
+
+if (isset($_GET['are_version_check'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'success' => true,
+        'file' => '/public_html/backare/index.php',
+        'version' => 'ARE_IDS_40600_41099_48647_53159_58279',
+        'time' => date('c')
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 require __DIR__ . '/config/database.php';
 require __DIR__ . '/core/helpers.php';
 require __DIR__ . '/core/security.php';
 require __DIR__ . '/core/integrations.php';
-
 apply_security_headers();
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
@@ -24,6 +33,450 @@ if ((bool)(app_config()['app']['log_requests'] ?? false)) {
         'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? null,
         'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null,
     ]);
+}
+
+
+function repair_property_row_description_if_needed(array $row): array
+{
+    // Antes se refrescaba SIEMPRE contra Tokko al abrir el detalle; eso podía tardar 30s-1min.
+    // Ahora solo se consulta Tokko si la descripción local está vacía/cortada.
+    $current = trim((string)($row['description'] ?? ''));
+    $currentLength = mb_strlen($current, 'UTF-8');
+    $needsRepair = $current === ''
+        || $currentLength < 260
+        || (function_exists('tokko_description_is_probably_cut') && tokko_description_is_probably_cut($current));
+
+    if (!$needsRepair) {
+        return $row;
+    }
+
+    if (function_exists('tokko_refresh_property_row_from_tokko')) {
+        $row = tokko_refresh_property_row_from_tokko($row);
+        $current = trim((string)($row['description'] ?? ''));
+        $currentLength = mb_strlen($current, 'UTF-8');
+        $needsRepair = $current === ''
+            || $currentLength < 260
+            || (function_exists('tokko_description_is_probably_cut') && tokko_description_is_probably_cut($current));
+
+        if (!$needsRepair) {
+            return $row;
+        }
+    }
+
+    $details = decode_json_field($row['details_json'] ?? null, []);
+    $publicUrl = $details['public_url'] ?? null;
+
+    if (!is_string($publicUrl) || !filter_var($publicUrl, FILTER_VALIDATE_URL)) {
+        return $row;
+    }
+
+    $publicDescription = tokko_fetch_public_description($publicUrl);
+    $publicLength = mb_strlen($publicDescription, 'UTF-8');
+
+    if ($publicLength <= max($currentLength + 40, 260) || !tokko_description_is_valid($publicDescription)) {
+        return $row;
+    }
+
+    try {
+        $stmt = db()->prepare('UPDATE properties SET description = :description, updated_at = NOW() WHERE id = :id');
+        $stmt->execute([
+            ':description' => $publicDescription,
+            ':id' => (int)$row['id'],
+        ]);
+        $row['description'] = $publicDescription;
+        clear_property_list_cache();
+    } catch (Throwable $e) {
+        log_error($e);
+    }
+
+    return $row;
+}
+
+
+function output_remote_property_asset(array $row, int $index): void
+{
+    $photos = decode_json_field($row['photos_json'] ?? null, []);
+    if (!$photos && !empty($row['image_url'])) {
+        $photos = [[
+            'image' => $row['image_url'],
+            'thumb' => $row['image_url'],
+            'original' => $row['image_url'],
+        ]];
+    }
+
+    $photo = $photos[$index] ?? null;
+    if (!is_array($photo)) {
+        http_response_code(404);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'message' => 'Imagen no encontrada']);
+        exit;
+    }
+
+    $url = $photo['original'] ?? $photo['image'] ?? $photo['thumb'] ?? null;
+    if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+        http_response_code(404);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'message' => 'URL de imagen inválida']);
+        exit;
+    }
+
+    $headers = [];
+    $body = false;
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (ARE PDF Image Proxy)',
+            CURLOPT_HEADERFUNCTION => function ($curl, $header) use (&$headers) {
+                $len = strlen($header);
+                $parts = explode(':', $header, 2);
+                if (count($parts) === 2) {
+                    $headers[strtolower(trim($parts[0]))] = trim($parts[1]);
+                }
+                return $len;
+            },
+        ]);
+        $body = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($status < 200 || $status >= 300) {
+            $body = false;
+        }
+    } else {
+        $ctx = stream_context_create(['http' => [
+            'timeout' => 20,
+            'header' => "User-Agent: Mozilla/5.0 (ARE PDF Image Proxy)
+",
+        ]]);
+        $body = @file_get_contents($url, false, $ctx);
+    }
+
+    if (!is_string($body) || $body === '') {
+        http_response_code(404);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'message' => 'No se pudo cargar la imagen remota']);
+        exit;
+    }
+
+    $contentType = $headers['content-type'] ?? null;
+    if (!is_string($contentType) || stripos($contentType, 'image/') !== 0) {
+        $path = parse_url($url, PHP_URL_PATH) ?: '';
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $contentType = match ($ext) {
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            default => 'image/jpeg',
+        };
+    }
+
+    header('Content-Type: ' . $contentType);
+    header('Cache-Control: public, max-age=86400');
+    header('Content-Length: ' . strlen($body));
+    echo $body;
+    exit;
+}
+
+
+
+function public_are_real_estate_filter_sql(string $alias = ''): string
+{
+    $prefix = $alias !== '' ? rtrim($alias, '.') . '.' : '';
+
+    // Regla pública definitiva:
+    // El sitio ARE debe mostrar únicamente inventario cuya sucursal sea ARE Real Estate.
+    // No se filtra por título, tags o descripción, porque esos campos pueden contener
+    // textos comerciales y provocar falsos positivos. La fuente confiable es branch_name
+    // y, como respaldo, el bloque details_json.branch que guardamos desde Tokko.
+    $branch  = "LOWER(COALESCE({$prefix}branch_name, ''))";
+    $details = "LOWER(COALESCE({$prefix}details_json, ''))";
+
+    return "(
+        (
+            {$branch} LIKE '%are real estate%'
+            OR {$branch} LIKE '%are real state%'
+            OR {$details} LIKE '%\"name\":\"are real estate\"%'
+            OR {$details} LIKE '%\"display_name\":\"are real estate\"%'
+            OR {$details} LIKE '%\"name\": \"are real estate\"%'
+            OR {$details} LIKE '%\"display_name\": \"are real estate\"%'
+            OR {$details} LIKE '%\"name\":\"are real state\"%'
+            OR {$details} LIKE '%\"display_name\":\"are real state\"%'
+            OR {$details} LIKE '%\"name\": \"are real state\"%'
+            OR {$details} LIKE '%\"display_name\": \"are real state\"%'
+        )
+        AND {$branch} NOT LIKE '%are homes%'
+        AND {$branch} NOT LIKE '%arehomes%'
+        AND {$branch} NOT LIKE '%are-homes%'
+    )";
+}
+
+function is_public_are_real_estate_row(array $row): bool
+{
+    $branch = strtolower(trim((string)($row['branch_name'] ?? '')));
+    $details = strtolower((string)($row['details_json'] ?? ''));
+
+    $isHomes = str_contains($branch, 'are homes')
+        || str_contains($branch, 'arehomes')
+        || str_contains($branch, 'are-homes');
+
+    if ($isHomes) {
+        return false;
+    }
+
+    return str_contains($branch, 'are real estate')
+        || str_contains($branch, 'are real state')
+        || str_contains($details, '"name":"are real estate"')
+        || str_contains($details, '"display_name":"are real estate"')
+        || str_contains($details, '"name": "are real estate"')
+        || str_contains($details, '"display_name": "are real estate"')
+        || str_contains($details, '"name":"are real state"')
+        || str_contains($details, '"display_name":"are real state"')
+        || str_contains($details, '"name": "are real state"')
+        || str_contains($details, '"display_name": "are real state"');
+}
+
+function property_list_cache_dir(): string
+{
+    $dir = __DIR__ . '/logs/cache';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    return $dir;
+}
+
+function property_list_cache_key(array $parts): string
+{
+    ksort($parts);
+    return 'properties_' . sha1(json_encode($parts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+}
+
+function read_property_list_cache(string $key, int $ttlSeconds): ?string
+{
+    if ($ttlSeconds < 1) {
+        return null;
+    }
+
+    $file = property_list_cache_dir() . '/' . $key . '.json';
+    if (!is_file($file)) {
+        return null;
+    }
+
+    if ((time() - (int)@filemtime($file)) > $ttlSeconds) {
+        return null;
+    }
+
+    $payload = @file_get_contents($file);
+    return is_string($payload) && $payload !== '' ? $payload : null;
+}
+
+function write_property_list_cache(string $key, string $payload): void
+{
+    $dir = property_list_cache_dir();
+    @file_put_contents($dir . '/' . $key . '.json', $payload, LOCK_EX);
+}
+
+function clear_property_list_cache(): void
+{
+    $dir = property_list_cache_dir();
+    foreach (glob($dir . '/properties_*.json') ?: [] as $file) {
+        @unlink($file);
+    }
+}
+
+function respond_cached_json(string $payload, int $maxAgeSeconds = 60): void
+{
+    http_response_code(200);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: public, max-age=' . $maxAgeSeconds . ', stale-while-revalidate=300');
+    header('X-ARE-Cache: HIT');
+    echo $payload;
+    exit;
+}
+
+
+function are_debug_tokko_fetch_all(string $baseUrl, string $apiKey, array $extraParams = []): array
+{
+    $baseUrl = trim($baseUrl);
+    if ($baseUrl === '' || $apiKey === '') {
+        return ['items' => [], 'pages' => [], 'total_reported' => null, 'error' => 'Tokko URL o API key no configurada'];
+    }
+
+    $items = [];
+    $pages = [];
+    $offset = 0;
+    $limit = 100;
+    $totalReported = null;
+    $safety = 0;
+
+    while ($safety < 30) {
+        $safety++;
+        $separator = str_contains($baseUrl, '?') ? '&' : '?';
+        $params = array_merge($extraParams, [
+            'key' => $apiKey,
+            'limit' => $limit,
+            'offset' => $offset,
+        ]);
+        $url = $baseUrl . $separator . http_build_query($params);
+
+        $ctx = stream_context_create(['http' => ['timeout' => 20]]);
+        $raw = @file_get_contents($url, false, $ctx);
+        $payload = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+
+        if (!is_array($payload)) {
+            $pages[] = [
+                'offset' => $offset,
+                'limit' => $limit,
+                'ok' => false,
+                'items_returned' => 0,
+                'raw_preview' => is_string($raw) ? substr($raw, 0, 300) : null,
+            ];
+            break;
+        }
+
+        $pageItems = $payload['objects'] ?? $payload['results'] ?? $payload['data'] ?? [];
+        if (!is_array($pageItems)) {
+            $pageItems = [];
+        }
+
+        $meta = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+        $totalReported = $totalReported
+            ?? ($meta['total_count'] ?? $meta['total'] ?? $payload['total_count'] ?? $payload['total'] ?? null);
+
+        $pages[] = [
+            'offset' => $offset,
+            'limit' => $limit,
+            'ok' => true,
+            'items_returned' => count($pageItems),
+            'total_reported' => $totalReported,
+            'has_next' => !empty($meta['next']),
+        ];
+
+        foreach ($pageItems as $item) {
+            if (is_array($item)) {
+                $items[] = $item;
+            }
+        }
+
+        if (count($pageItems) === 0) {
+            break;
+        }
+
+        $offset += count($pageItems);
+        if ($totalReported !== null && $offset >= (int)$totalReported) {
+            break;
+        }
+
+        if (empty($meta['next']) && count($pageItems) < $limit) {
+            break;
+        }
+    }
+
+    return ['items' => $items, 'pages' => $pages, 'total_reported' => $totalReported, 'error' => null];
+}
+
+function are_debug_tokko_branch_name(array $item): string
+{
+    $branch = $item['branch'] ?? null;
+    if (is_array($branch)) {
+        foreach (['display_name', 'name'] as $key) {
+            if (isset($branch[$key]) && is_string($branch[$key]) && trim($branch[$key]) !== '') {
+                return trim($branch[$key]);
+            }
+        }
+    }
+    return '';
+}
+
+function are_debug_tokko_development_summary(array $item, string $source = 'development_endpoint'): array
+{
+    $branch = $item['branch'] ?? [];
+    $location = is_array($item['location'] ?? null) ? $item['location'] : [];
+
+    return [
+        'source' => $source,
+        'id' => $item['id'] ?? null,
+        'name' => $item['publication_title'] ?? $item['title'] ?? $item['name'] ?? $item['fake_address'] ?? null,
+        'fake_address' => $item['fake_address'] ?? null,
+        'address' => $item['address'] ?? null,
+        'branch_id' => is_array($branch) ? ($branch['id'] ?? null) : null,
+        'branch_name' => are_debug_tokko_branch_name($item),
+        'branch_email' => is_array($branch) ? ($branch['email'] ?? null) : null,
+        'display_on_web' => $item['display_on_web'] ?? null,
+        'deleted_at' => $item['deleted_at'] ?? null,
+        'construction_status' => $item['construction_status'] ?? null,
+        'construction_date' => $item['construction_date'] ?? null,
+        'location' => $location['full_location'] ?? null,
+        'unit_amount' => $item['unit_amount'] ?? null,
+    ];
+}
+
+function are_debug_group_by_branch(array $rows): array
+{
+    $out = [];
+    foreach ($rows as $row) {
+        $branch = trim((string)($row['branch_name'] ?? ''));
+        if ($branch === '') {
+            $branch = 'SIN SUCURSAL';
+        }
+        $out[$branch] = ($out[$branch] ?? 0) + 1;
+    }
+    ksort($out);
+    return $out;
+}
+
+function are_debug_tokko_development_variant_report(string $devUrl, string $apiKey): array
+{
+    $variants = function_exists('tokko_development_fetch_variant_params')
+        ? tokko_development_fetch_variant_params()
+        : [[]];
+
+    $report = [];
+    foreach ($variants as $params) {
+        $fetch = are_debug_tokko_fetch_all($devUrl, $apiKey, $params);
+        $rows = [];
+        foreach (($fetch['items'] ?? []) as $item) {
+            if (is_array($item)) {
+                $rows[] = are_debug_tokko_development_summary($item, 'development_variant');
+            }
+        }
+
+        $report[] = [
+            'params' => $params,
+            'total_reported' => $fetch['total_reported'] ?? null,
+            'loaded' => count($rows),
+            'by_branch' => are_debug_group_by_branch($rows),
+            'ids' => array_values(array_filter(array_map(static fn ($row) => $row['id'] ?? null, $rows))),
+            'pages' => $fetch['pages'] ?? [],
+        ];
+    }
+
+    return $report;
+}
+
+function are_debug_tokko_probe_development_ids(string $devUrl, string $apiKey, array $ids): array
+{
+    $out = [];
+
+    foreach (array_values(array_unique(array_map('strval', $ids))) as $id) {
+        $id = trim($id);
+        if ($id === '' || !ctype_digit($id)) {
+            continue;
+        }
+
+        $detail = function_exists('tokko_fetch_item_detail') ? tokko_fetch_item_detail($devUrl, $apiKey, $id) : null;
+        $out[] = [
+            'id' => $id,
+            'found' => is_array($detail) && !empty($detail),
+            'summary' => (is_array($detail) && !empty($detail)) ? are_debug_tokko_development_summary($detail, 'development_detail_by_id') : null,
+        ];
+    }
+
+    return $out;
 }
 
 try {
@@ -113,7 +566,19 @@ try {
             respond(400, ['success' => false, 'message' => 'El archivo excede el tamaño máximo permitido']);
         }
         $ext       = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $filename  = uniqid('img_', true) . '.' . $ext;
+        $target    = preg_replace('/[^a-z0-9_-]/i', '', (string)($_POST['target'] ?? ''));
+        $fixedPdfTargets = ['avisodeprivacidad', 'terminosycondiciones'];
+
+        if ($target && in_array($target, $fixedPdfTargets, true)) {
+            if ($file['type'] !== 'application/pdf') {
+                respond(400, ['success' => false, 'message' => 'Este documento legal debe subirse en PDF.']);
+            }
+            $filename = $target . '.pdf';
+        } else {
+            $prefix = $file['type'] === 'application/pdf' ? 'doc_' : 'img_';
+            $filename = uniqid($prefix, true) . '.' . $ext;
+        }
+
         $uploadDir = __DIR__ . '/uploads/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
@@ -124,6 +589,9 @@ try {
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host     = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $url      = $protocol . '://' . $host . '/backare/uploads/' . $filename;
+        if (!empty($target) && in_array($target, $fixedPdfTargets, true)) {
+            $url .= '?v=' . time();
+        }
         respond(200, ['success' => true, 'data' => ['url' => $url]]);
     }
 
@@ -406,7 +874,8 @@ try {
 
     // ─── Propiedades ─────────────────────────────────────────────────────────
     if ($path === '/properties' && $method === 'GET') {
-        // Ensure branch_name column exists before querying (safe no-op if already present)
+        // Esta ruta debe ser rápida: solo lee la BD/cache local.
+        // La sincronización completa con Tokko se hace desde el botón admin /properties/sync/tokko.
         ensure_property_columns();
 
         $city          = $_GET['city'] ?? null;
@@ -415,17 +884,36 @@ try {
         $property_type = $_GET['property_type'] ?? null;
         $rawLimit      = $_GET['limit'] ?? null;
         $returnAll     = $rawLimit === null || $rawLimit === '' || strtolower((string)$rawLimit) === 'all';
+        $pageParam     = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+        $limitParam    = isset($_GET['limit']) && is_numeric($_GET['limit']) ? max(1, min((int)$_GET['limit'], 500)) : 100;
+        $skipCache     = isset($_GET['nocache']) && (string)$_GET['nocache'] === '1';
+        $cacheTtl      = 300; // 5 minutos: evita consultas pesadas repetidas al navegar.
+
+        $cacheKey = property_list_cache_key([
+            'city' => $city,
+            'operation_type' => $operation,
+            'listing_kind' => $kind,
+            'property_type' => $property_type,
+            'limit' => $returnAll ? 'all' : $limitParam,
+            'page' => $returnAll ? 1 : $pageParam,
+            // v3: el sitio público solo debe mostrar inventario de ARE Real Estate,
+            // excluyendo cualquier propiedad/desarrollo de ARE Homes.
+            'v' => 'fast-v11-strict-real-estate-filter',
+        ]);
+
+        if (!$skipCache) {
+            $cached = read_property_list_cache($cacheKey, $cacheTtl);
+            if ($cached !== null) {
+                respond_cached_json($cached, 60);
+            }
+        }
 
         $where  = [];
         $params = [];
 
-        // Exclude properties/developments published by "ARE Homes" branch
-        // Uses branch_name column when populated; falls back to details_json for rows not yet re-synced
-        $where[] = "(
-            (branch_name IS NOT NULL AND LOWER(branch_name) NOT LIKE '%are homes%')
-            OR
-            (branch_name IS NULL AND (details_json IS NULL OR LOWER(details_json) NOT LIKE '%\"name\":\"are homes%'))
-        )";
+        // Filtro público definitivo: propiedades, unidades y desarrollos visibles
+        // deben pertenecer a ARE Real Estate. ARE Homes no debe mostrarse en el portal.
+        $where[] = public_are_real_estate_filter_sql();
 
         if ($city) {
             $where[]              = 'city LIKE :city';
@@ -435,11 +923,14 @@ try {
             $where[]                   = 'operation_type = :operation_type';
             $params[':operation_type'] = $operation;
         }
-        if ($kind) {
-            $where[]               = 'listing_kind = :listing_kind';
+        if ($kind === 'inventory') {
+            // Vista pública de Propiedades: incluye propiedades independientes + unidades.
+            $where[] = "listing_kind IN ('property','unit')";
+        } elseif ($kind) {
+            $where[]                = 'listing_kind = :listing_kind';
             $params[':listing_kind'] = $kind;
         } else {
-            // Units are only fetched through /properties/{id}/units, not the main list
+            // Units are only fetched through inventory or /properties/{id}/units, not the main generic list.
             $where[] = "listing_kind != 'unit'";
         }
         if ($property_type) {
@@ -453,49 +944,78 @@ try {
         $count->execute($params);
         $total = (int)$count->fetchColumn();
 
+        $columns = "id, tokko_id, title, description, price, address, city, bedrooms, bathrooms, area,
+                    image_url, operation_type, listing_kind, property_type, reference_code,
+                    location_full, parent_tokko_id, branch_name, tags_json, details_json, created_at, updated_at";
+
         if ($returnAll) {
             $page = 1;
             $limit = max($total, 1);
-            $offset = 0;
-            $stmt = db()->prepare("SELECT * FROM properties $whereClause ORDER BY created_at DESC");
+            $stmt = db()->prepare("SELECT $columns FROM properties $whereClause ORDER BY created_at DESC");
             foreach ($params as $k => $v) { $stmt->bindValue($k, $v); }
         } else {
-            [$page, $limit, $offset] = pagination();
-            $stmt = db()->prepare("SELECT * FROM properties $whereClause ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
+            $page = $pageParam;
+            $limit = $limitParam;
+            $offset = ($page - 1) * $limit;
+            $stmt = db()->prepare("SELECT $columns FROM properties $whereClause ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
             foreach ($params as $k => $v) { $stmt->bindValue($k, $v); }
             $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
             $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         }
 
         $stmt->execute();
-
         $rows = array_map('normalize_property_row', $stmt->fetchAll());
 
-        // ── Send response to client immediately, then sync in background ────
-        $responseBody = (string)json_encode([
+        $payload = (string)json_encode([
             'success' => true,
             'data'    => $rows,
-            'meta'    => ['total' => $total, 'page' => $page, 'limit' => $limit, 'totalPages' => (int)ceil($total / $limit)],
-        ]);
-        http_response_code(200);
-        header('Content-Type: application/json');
-        header('Content-Length: ' . strlen($responseBody));
-        echo $responseBody;
+            'meta'    => [
+                'total' => $total,
+                'page' => $page,
+                'limit' => $limit,
+                'totalPages' => (int)ceil($total / max($limit, 1)),
+                'cached' => false,
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        // Flush to client NOW (works with FastCGI/PHP-FPM and classic mod_php)
-        if (function_exists('fastcgi_finish_request')) {
-            fastcgi_finish_request();
-        } else {
-            if (ob_get_level()) {
-                ob_end_flush();
-            }
-            flush();
+        write_property_list_cache($cacheKey, $payload);
+
+        http_response_code(200);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+        header('X-ARE-Cache: MISS');
+        echo $payload;
+        exit;
+    }
+
+    if (preg_match('#^/properties/(\d+)/asset/(\d+)$#', $path, $m) && $method === 'GET') {
+        $numId = (int)$m[1];
+        $assetIndex = (int)$m[2];
+        $stmt = db()->prepare('SELECT * FROM properties WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $numId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            $stmt2 = db()->prepare("SELECT * FROM properties WHERE tokko_id IN (:pid, :did) LIMIT 1");
+            $stmt2->execute([
+                ':pid' => 'property:' . $numId,
+                ':did' => 'development:' . $numId,
+            ]);
+            $row = $stmt2->fetch();
+        }
+        if (!$row || !is_public_are_real_estate_row($row)) {
+            http_response_code(404);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'message' => 'Propiedad no encontrada']);
+            exit;
         }
 
-        // Background: run auto-sync AFTER the user already has the data
-        ignore_user_abort(true);
-        tokko_auto_sync();
-        exit;
+        // Refresca fotos desde Tokko antes de generar la ficha. Esto evita 404
+        // cuando la BD todavía tiene photos_json vacío o desactualizado.
+        if (function_exists('tokko_refresh_property_row_from_tokko')) {
+            $row = tokko_refresh_property_row_from_tokko($row);
+        }
+
+        output_remote_property_asset($row, $assetIndex);
     }
 
     if (preg_match('#^/properties/(\d+)/units$#', $path, $m) && $method === 'GET') {
@@ -512,7 +1032,7 @@ try {
             $parentRow = $p2->fetch();
         }
         if (!$parentRow) { respond(404, ['success' => false, 'message' => 'Desarrollo no encontrado']); }
-        $stmt = db()->prepare("SELECT * FROM properties WHERE parent_tokko_id = :ptid ORDER BY price ASC, title ASC");
+        $stmt = db()->prepare("SELECT * FROM properties WHERE parent_tokko_id = :ptid AND " . public_are_real_estate_filter_sql() . " ORDER BY price ASC, title ASC");
         $stmt->execute([':ptid' => $parentRow['tokko_id']]);
         $rows = array_map('normalize_property_row', $stmt->fetchAll());
         respond(200, ['success' => true, 'data' => $rows, 'meta' => ['total' => count($rows)]]);
@@ -536,6 +1056,8 @@ try {
             $row = $stmt2->fetch();
         }
         if (!$row) { respond(404, ['success' => false, 'message' => 'Propiedad no encontrada']); }
+        if (!is_public_are_real_estate_row($row)) { respond(404, ['success' => false, 'message' => 'Propiedad no encontrada']); }
+        $row = repair_property_row_description_if_needed($row);
         respond(200, ['success' => true, 'data' => normalize_property_row($row)]);
     }
 
@@ -598,11 +1120,160 @@ try {
 
     if ($path === '/properties/sync/tokko' && $method === 'POST') {
         require_admin();
+        clear_property_list_cache();
         $result = tokko_sync();
+        clear_property_list_cache();
+
+        // Conteo real después de guardar en BD.
+        // Guardados = todos los desarrollos recibidos/guardados.
+        // Visibles = solo desarrollos de ARE Real Estate, que son los que debe mostrar la web.
+        try {
+            $result['developments_stored_total'] = (int)db()->query(
+                "SELECT COUNT(*) FROM properties WHERE listing_kind = 'development'"
+            )->fetchColumn();
+
+            $visibleStmt = db()->query(
+                "SELECT COUNT(*) FROM properties WHERE listing_kind = 'development' AND " . public_are_real_estate_filter_sql()
+            );
+            $result['developments_visible_are_real_estate'] = (int)$visibleStmt->fetchColumn();
+            // Compatibilidad con el frontend actual del panel admin.
+            // El mensaje antiguo lee developments_detected; debe mostrar los visibles de ARE Real Estate.
+            $result['developments_detected'] = $result['developments_visible_are_real_estate'];
+        } catch (Throwable $e) {
+            $result['developments_count_error'] = $e->getMessage();
+        }
+
         // Reset the auto-sync timer so the next automatic run is 15 minutes from now
         $stampFile = __DIR__ . '/logs/last_sync.stamp';
-        @file_put_contents($stampFile, 'v4|' . time(), LOCK_EX);
+        @file_put_contents($stampFile, 'v26|' . time(), LOCK_EX);
         respond(200, ['success' => true, 'data' => $result]);
+    }
+
+    // Diagnostic completo: trae desarrollos desde Tokko sin usar el filtro público.
+    // Uso:
+    // /backare/api/properties/debug/tokko-all-developments?secret=are2026debug
+    if ($path === '/properties/debug/tokko-all-developments' && $method === 'GET') {
+        $secret = $_GET['secret'] ?? '';
+        if ($secret !== 'are2026debug') {
+            respond(403, ['success' => false, 'message' => 'Forbidden']);
+        }
+
+        $cfg = app_config()['tokko'];
+        $apiKey = (string)($cfg['api_key'] ?? '');
+        $devUrl = (string)($cfg['development_url'] ?? '');
+        $propUrl = (string)($cfg['url'] ?? '');
+
+        $configuredExtraIds = function_exists('tokko_are_real_estate_development_ids') ? tokko_are_real_estate_development_ids() : [];
+        $queryExtraIds = function_exists('tokko_parse_development_ids') ? tokko_parse_development_ids($_GET['ids'] ?? null) : [];
+        $probeIds = array_values(array_unique(array_merge($configuredExtraIds, $queryExtraIds)));
+
+        // 1) Desarrollos directos del endpoint /development/
+        $direct = are_debug_tokko_fetch_all($devUrl, $apiKey);
+        $directRows = [];
+        foreach (($direct['items'] ?? []) as $item) {
+            if (is_array($item)) {
+                $directRows[] = are_debug_tokko_development_summary($item, 'development_endpoint');
+            }
+        }
+
+        // 2) Desarrollos detectados dentro del endpoint /property/ como padres de unidades.
+        // Esto es importante porque Tokko a veces publica unidades y el desarrollo padre
+        // aparece en item.development aunque no siempre sea evidente en /development/.
+        $property = are_debug_tokko_fetch_all($propUrl, $apiKey);
+        $parents = [];
+        foreach (($property['items'] ?? []) as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $dev = $item['development'] ?? null;
+            if (!is_array($dev) || empty($dev['id'])) {
+                continue;
+            }
+            $id = (string)$dev['id'];
+            if (!isset($parents[$id])) {
+                $parents[$id] = are_debug_tokko_development_summary($dev, 'property_endpoint_parent');
+                $parents[$id]['unit_count_seen_in_property_endpoint'] = 0;
+            }
+            $parents[$id]['unit_count_seen_in_property_endpoint']++;
+        }
+        $parentRows = array_values($parents);
+
+        // 3) Unión por ID para ver el universo real que estamos detectando desde la API.
+        $merged = [];
+        foreach (array_merge($directRows, $parentRows) as $row) {
+            $id = (string)($row['id'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+            if (!isset($merged[$id])) {
+                $merged[$id] = $row;
+            } else {
+                $merged[$id]['source'] = $merged[$id]['source'] . '+' . $row['source'];
+                if (empty($merged[$id]['branch_name']) && !empty($row['branch_name'])) {
+                    $merged[$id]['branch_name'] = $row['branch_name'];
+                }
+                if (isset($row['unit_count_seen_in_property_endpoint'])) {
+                    $merged[$id]['unit_count_seen_in_property_endpoint'] = $row['unit_count_seen_in_property_endpoint'];
+                }
+            }
+        }
+        $mergedRows = array_values($merged);
+
+        // 4) Estado de la BD local y conteo visible.
+        ensure_property_columns();
+        $dbAll = db()->query(
+            "SELECT id, tokko_id, title, listing_kind, branch_name, parent_tokko_id, created_at, updated_at
+             FROM properties
+             WHERE listing_kind = 'development'
+             ORDER BY branch_name ASC, title ASC"
+        )->fetchAll();
+
+        $dbVisibleStmt = db()->query(
+            "SELECT id, tokko_id, title, listing_kind, branch_name, parent_tokko_id, created_at, updated_at
+             FROM properties
+             WHERE listing_kind = 'development' AND " . public_are_real_estate_filter_sql() . "
+             ORDER BY title ASC"
+        );
+        $dbVisible = $dbVisibleStmt->fetchAll();
+
+        $variantReport = are_debug_tokko_development_variant_report($devUrl, $apiKey);
+        $idProbe = are_debug_tokko_probe_development_ids($devUrl, $apiKey, $probeIds);
+
+        respond(200, [
+            'success' => true,
+            'message' => 'Diagnóstico sin filtro público: compara direct_developments, property_parent_developments, merged_detected y db_visible_are_real_estate.',
+            'tokko_development_endpoint' => [
+                'total_reported' => $direct['total_reported'] ?? null,
+                'loaded' => count($directRows),
+                'pages' => $direct['pages'] ?? [],
+                'by_branch' => are_debug_group_by_branch($directRows),
+                'items' => $directRows,
+            ],
+            'tokko_property_endpoint' => [
+                'total_reported' => $property['total_reported'] ?? null,
+                'loaded_properties_or_units' => is_array($property['items'] ?? null) ? count($property['items']) : 0,
+                'pages' => $property['pages'] ?? [],
+                'parent_developments_loaded' => count($parentRows),
+                'parent_developments_by_branch' => are_debug_group_by_branch($parentRows),
+                'parent_developments' => $parentRows,
+            ],
+            'merged_detected_developments_from_tokko' => [
+                'loaded' => count($mergedRows),
+                'by_branch' => are_debug_group_by_branch($mergedRows),
+                'items' => $mergedRows,
+            ],
+            'development_endpoint_variants' => $variantReport,
+            'configured_extra_development_ids' => $configuredExtraIds,
+            'query_probe_ids' => $queryExtraIds,
+            'development_detail_probe_by_id' => $idProbe,
+            'database' => [
+                'stored_developments_total' => count($dbAll),
+                'stored_by_branch' => are_debug_group_by_branch($dbAll),
+                'visible_are_real_estate_count' => count($dbVisible),
+                'all_stored_developments' => $dbAll,
+                'visible_are_real_estate' => $dbVisible,
+            ],
+        ]);
     }
 
     // Diagnostic: show raw first item from Tokko development endpoint + DB counts
@@ -623,6 +1294,50 @@ try {
             'db_counts'   => $dbCounts,
             'tokko_total' => $decoded['meta']['total_count'] ?? null,
             'first_items' => array_slice($firstItems, 0, 2),
+        ]);
+    }
+
+
+    // Diagnostic: inspect one specific Tokko property payload and local extraction.
+    // Usage: /backare/api/properties/debug/tokko-item?secret=are2026debug&id=7066959
+    if ($path === '/properties/debug/tokko-item' && $method === 'GET') {
+        $secret = $_GET['secret'] ?? '';
+        if ($secret !== 'are2026debug') {
+            respond(403, ['error' => 'Forbidden']);
+        }
+
+        $rawId = (string)($_GET['id'] ?? '');
+        if ($rawId === '') {
+            respond(422, ['success' => false, 'message' => 'Falta parámetro id de Tokko']);
+        }
+
+        $cfg = app_config()['tokko'];
+        $detail = tokko_fetch_item_detail($cfg['url'] ?? '', $cfg['api_key'] ?? '', $rawId);
+        if (!$detail) {
+            respond(404, ['success' => false, 'message' => 'Tokko no devolvió detalle para ese ID']);
+        }
+
+        $publicData = function_exists('tokko_public_ficha_data_for_item') ? tokko_public_ficha_data_for_item($detail, $detail) : [];
+        $description = function_exists('tokko_best_description')
+            ? tokko_best_description(tokko_extract_description($detail, $detail), (string)($publicData['description'] ?? ''))
+            : tokko_extract_description($detail, $detail);
+        $details = tokko_extract_details($detail, $detail, false);
+        if (function_exists('tokko_apply_public_ficha_data')) {
+            $details = tokko_apply_public_ficha_data($details, is_array($publicData) ? $publicData : []);
+        }
+        respond(200, [
+            'success' => true,
+            'tokko_id' => $rawId,
+            'description_length' => mb_strlen($description, 'UTF-8'),
+            'description_preview' => mb_substr($description, 0, 500, 'UTF-8'),
+            'description_full' => $description,
+            'tags' => tokko_extract_tags($detail),
+            'tag_groups' => $details['tag_groups'] ?? null,
+            'public_urls_tested' => function_exists('tokko_public_urls_for_item') ? tokko_public_urls_for_item($detail, $detail) : [],
+            'public_data' => $publicData,
+            'public_url' => $details['public_url'] ?? null,
+            'raw_keys' => array_keys($detail),
+            'raw' => $detail,
         ]);
     }
 
@@ -740,8 +1455,8 @@ try {
 
         $latest = db()->query("SELECT id, name, status, created_at FROM leads ORDER BY created_at DESC LIMIT 5")->fetchAll();
 
-        // Propiedades visibles al publico (listing_kind='property', sin sucursal ARE Homes)
-        $publicFilter = "listing_kind = 'property' AND (details_json IS NULL OR LOWER(details_json) NOT LIKE '%\"name\":\"are homes%')";
+        // Propiedades visibles al publico: solo ARE Real Estate, excluyendo ARE Homes.
+        $publicFilter = "listing_kind = 'property' AND " . public_are_real_estate_filter_sql();
 
         $propStats = db()->query("
             SELECT
@@ -762,9 +1477,10 @@ try {
             LIMIT 8
         ")->fetchAll();
 
-        $totalDevelopments = (int)db()->query("
-            SELECT COUNT(*) FROM properties WHERE listing_kind = 'development'
-        ")->fetchColumn();
+        // Desarrollos visibles en el portal: únicamente ARE Real Estate.
+        $totalDevelopments = (int)db()->query(
+            "SELECT COUNT(*) FROM properties WHERE listing_kind = 'development' AND " . public_are_real_estate_filter_sql()
+        )->fetchColumn();
 
         respond(200, ['success' => true, 'data' => [
             'totals'           => $totals,
@@ -799,6 +1515,7 @@ try {
             'about_team', 'about_timeline', 'about_mission', 'about_vision',
             'about_differentiators', 'about_brochure',
             'legal_privacy', 'legal_terms',
+            'tokko_extra_development_ids', 'tokko_are_real_estate_development_ids',
             // Home page
             'home_hero_badge', 'home_hero_title', 'home_hero_subtitle',
             'home_hero_image', 'home_hero_cta_primary', 'home_hero_cta_secondary',

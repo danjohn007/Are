@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const defaultApiBase = '/backare/api';
+const isDev = import.meta.env.DEV;
 let refreshPromise = null;
 
 function clearAuthStorage() {
@@ -63,11 +64,13 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  console.log('[API REQUEST]', {
-    method: config.method,
-    url: `${config.baseURL}${config.url}`,
-    data: config.data || null
-  });
+  if (isDev) {
+    console.log('[API REQUEST]', {
+      method: config.method,
+      url: `${config.baseURL}${config.url}`,
+      data: config.data || null
+    });
+  }
 
   return config;
 });
@@ -91,11 +94,13 @@ api.interceptors.response.use(
       throw new Error('API devolvio HTML en lugar de JSON. Revisa VITE_API_URL o reglas de rewrite en cPanel.');
     }
 
-    console.log('[API RESPONSE]', {
-      url: `${response.config.baseURL}${response.config.url}`,
-      status: response.status,
-      data: response.data
-    });
+    if (isDev) {
+      console.log('[API RESPONSE]', {
+        url: `${response.config.baseURL}${response.config.url}`,
+        status: response.status,
+        data: response.data
+      });
+    }
     return response;
   },
   (error) => {
@@ -118,17 +123,19 @@ api.interceptors.response.use(
         });
     }
 
-    console.error('[API ERROR]', {
-      url: `${error?.config?.baseURL || ''}${error?.config?.url || ''}`,
-      status,
-      data: error?.response?.data,
-      message: error?.message
-    });
+    if (isDev) {
+      console.error('[API ERROR]', {
+        url: `${error?.config?.baseURL || ''}${error?.config?.url || ''}`,
+        status,
+        data: error?.response?.data,
+        message: error?.message
+      });
+    }
     return Promise.reject(error);
   }
 );
 
-export async function getAllPaginated(endpoint, params = {}, pageSize = 100) {
+export async function getAllPaginated(endpoint, params = {}, pageSize = 500) {
   const collected = [];
   let page = 1;
   let totalPages = 1;
@@ -153,5 +160,37 @@ export async function getAllPaginated(endpoint, params = {}, pageSize = 100) {
 
   return collected;
 }
+
+
+export function readListCache(key, ttlMs = 300000) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.data) || !parsed.savedAt) return null;
+
+    if (Date.now() - Number(parsed.savedAt) > ttlMs) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+export function writeListCache(key, data) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({
+      savedAt: Date.now(),
+      data: Array.isArray(data) ? data : [],
+    }));
+  } catch {
+    // Si el navegador no permite storage o se llena, simplemente seguimos sin cache local.
+  }
+}
+
 
 export default api;

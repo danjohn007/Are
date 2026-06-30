@@ -25,6 +25,7 @@ export default function PropertyCard({ property }) {
   const area = firstPositiveNumber(property.area, property.details?.total_surface, property.details?.roofed_surface, property.details?.private_area);
   const bedrooms = toPositiveNumber(property.bedrooms);
   const bathrooms = toPositiveNumber(property.bathrooms);
+  const displayLocation = property.display_location || property.details?.display_location || property.location_full || property.address || property.city || '';
 
   const facts = [
     area > 0 ? { key: 'area', icon: Maximize2, label: `${area.toLocaleString('es-MX')} m²` } : null,
@@ -39,6 +40,8 @@ export default function PropertyCard({ property }) {
           <img
             src={property.image_url || 'https://images.unsplash.com/photo-1570129477492-45c003edd2be'}
             alt={property.title}
+            loading="lazy"
+            decoding="async"
             className="h-56 w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-slate-950/0 transition-all duration-300 group-hover:bg-slate-950/40 flex items-center justify-center">
@@ -64,7 +67,7 @@ export default function PropertyCard({ property }) {
         </h3>
         <p className="mt-2 flex items-start gap-1 text-xs leading-5 text-gray-500">
           <MapPin size={11} className="mt-1 shrink-0 text-brand-400" />
-          <span>{property.location_full || property.address || property.city || 'Ubicación no disponible'}</span>
+          <span>{displayLocation || 'Ubicación no disponible'}</span>
         </p>
 
         {facts.length > 0 && (

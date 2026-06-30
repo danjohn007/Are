@@ -31,6 +31,37 @@ function normalizePropertyDescription(value) {
     .trim();
 }
 
+function looksLikeCutDescription(value) {
+  const text = String(value || '').trim();
+  if (text.length < 120 || text.length >= 320) return false;
+  return !/[.!?…)]$/.test(text) || /\b(c|co|con|de|del|la|el|los|las|un|una|en|para|por|que|y|o)$/i.test(text);
+}
+
+function chooseBestDescription(...values) {
+  let best = '';
+
+  values.forEach((value) => {
+    const text = normalizePropertyDescription(value);
+    if (!text) return;
+
+    if (!best) {
+      best = text;
+      return;
+    }
+
+    if (text.length > best.length + 40) {
+      best = text;
+      return;
+    }
+
+    if (looksLikeCutDescription(best) && !looksLikeCutDescription(text) && text.length >= best.length - 20) {
+      best = text;
+    }
+  });
+
+  return best;
+}
+
 // ─── Property documents and generated PDF preview ─────────────────────────
 function isUsableDocumentUrl(value) {
   if (typeof value !== 'string' || !value.trim()) return false;
@@ -138,23 +169,66 @@ function firstPositiveNumber(...values) {
   return 0;
 }
 
+const EMPTY_DISPLAY_VALUES = new Set([
+  '', '-', '--', '---', 'n/a', 'na', 'nd',
+  'array', 'undefined', 'null',
+  'no disponible', 'no especificado', 'sin especificar',
+  'sin informacion', 'sin información', 'desconocido',
+  'agregar un valor o medida',
+]);
+
+function normalizeDisplayText(value) {
+  return String(value ?? '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function isInvalidTokkoDisplayValue(value) {
-  const normalized = String(value ?? '').trim().toLowerCase();
-  return normalized === ''
-    || normalized === 'array'
-    || normalized === 'undefined'
-    || normalized === 'null'
+  if (value === null || value === undefined) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'object') return Object.keys(value).length === 0;
+
+  const text = normalizeDisplayText(value);
+  const normalized = text.toLowerCase();
+
+  return EMPTY_DISPLAY_VALUES.has(normalized)
+    || /^[-—–]+$/.test(text)
+    || /^\s*[A-ZÁÉÍÓÚÑ]\s*:\s*[^\n]{1,180}$/u.test(text)
+    || /^0(?:[.,]0+)?(?:\s*(mxn|usd|m2|m²|m|%))?$/i.test(text)
     || normalized.includes('arqus-alliance')
     || normalized.includes('mymemory warning')
     || normalized.includes('query length limit');
 }
 
 function hasDisplayValue(value) {
-  if (value === null || value === undefined) return false;
-  if (typeof value === 'string' && isInvalidTokkoDisplayValue(value)) return false;
+  if (isInvalidTokkoDisplayValue(value)) return false;
   if (typeof value === 'number' && value <= 0) return false;
-  if (typeof value === 'string' && /^0(?:[.,]0+)?$/.test(value.trim())) return false;
   return true;
+}
+
+function firstDisplayValue(...values) {
+  for (const value of values) {
+    if (hasDisplayValue(value)) return value;
+  }
+  return null;
+}
+
+function normalizeAttributeKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getCustomAttribute(details, labels = []) {
+  const attributes = Array.isArray(details?.custom_attributes) ? details.custom_attributes : [];
+  const wanted = labels.map(normalizeAttributeKey);
+  const found = attributes.find((attribute) => wanted.includes(normalizeAttributeKey(attribute?.label)));
+  return found?.value ?? null;
 }
 
 function formatAge(value) {
@@ -510,11 +584,17 @@ function translateTokkoValue(value) {
   return isInvalidTokkoDisplayValue(translated) ? null : translated;
 }
 
-function categorizePdfTags(tags = []) {
-  const translated = tags
+function normalizeTagList(tags = []) {
+  if (!Array.isArray(tags)) return [];
+  const clean = tags
     .map((tag) => translateTokkoValue(tag))
     .filter((tag) => hasDisplayValue(tag))
     .map((tag) => String(tag).trim());
+  return [...new Set(clean)];
+}
+
+function categorizePdfTags(tags = []) {
+  const translated = normalizeTagList(tags);
 
   const servicePattern = /electric|internet|tel[eé]fono|agua|gas|drenaje|alcantarillado|alumbrado|paviment|seguridad|cctv|vigilancia|mantenimiento|planta de luz|energ[ií]a|cisterna/i;
   const spacePattern = /baño|bodega|patio|terraza|jard[ií]n|rec[aá]mara|cocina|sala|comedor|oficina|lobby|vest[ií]bulo|roof|estacionamiento|cochera|balc[oó]n|and[eé]n|local|sal[oó]n/i;
@@ -533,6 +613,33 @@ function categorizePdfTags(tags = []) {
     services: [...new Set(services)],
     spaces: [...new Set(spaces)],
     features: [...new Set(features)],
+  };
+}
+
+function getStructuredTagGroups(details, fallbackTags = []) {
+  const rawGroups = details?.tag_groups && typeof details.tag_groups === 'object'
+    ? details.tag_groups
+    : null;
+
+  const publicServices = normalizeTagList(details?.public_services);
+  const publicSpaces = normalizeTagList(details?.public_spaces);
+  const publicFeatures = normalizeTagList(details?.public_features);
+
+  const structured = rawGroups
+    ? {
+        services: normalizeTagList(rawGroups.services),
+        spaces: normalizeTagList(rawGroups.spaces),
+        features: normalizeTagList(rawGroups.features),
+      }
+    : { services: [], spaces: [], features: [] };
+
+  // Importante: no usamos fallbackTags/item.tags para servicios, porque Tokko puede
+  // devolver ahí etiquetas internas adicionales que no son las visibles en la ficha pública.
+  // La verdad visual debe venir de details.public_services o details.tag_groups.services.
+  return {
+    services: publicServices.length ? publicServices : structured.services,
+    spaces: publicSpaces.length ? publicSpaces : structured.spaces,
+    features: publicFeatures.length ? publicFeatures : structured.features,
   };
 }
 
@@ -702,14 +809,52 @@ export default function PropertyDetailPage() {
   const calculatedPricePerM2 = toNumber(item.price) > 0 && primaryArea > 0 ? toNumber(item.price) / primaryArea : 0;
   const pricePerM2 = explicitPricePerM2 > 0 ? explicitPricePerM2 : calculatedPricePerM2;
   const displayPrice = toNumber(item.price) > 0 ? `$${toNumber(item.price).toLocaleString('es-MX')} MXN` : 'Consultar precio';
-  const displayDescription = normalizePropertyDescription(item.description);
+  const displayDescription = chooseBestDescription(
+    item.description,
+    item.details?.public_description,
+    item.details?.description,
+    item.details?.rich_description,
+    item.details?.description_only,
+  );
+  const displayAddress = firstDisplayValue(item.address, item.details?.published_address) || '';
+  const rawDisplayLocation = firstDisplayValue(
+    item.display_location,
+    item.details?.display_location,
+    [displayAddress, firstDisplayValue(item.location_full, item.city)].filter(Boolean).join(' | '),
+  );
+  const displayLocation = rawDisplayLocation || 'Ubicación no disponible';
+  const maintenanceValue = firstPositiveNumber(
+    item.details?.expenses,
+    item.details?.maintenance,
+    item.details?.maintenance_fee,
+    item.details?.custom_maintenance,
+  );
+  const displayMaintenance = maintenanceValue > 0 ? `$${maintenanceValue.toLocaleString('es-MX')} MXN` : null;
+  const visibleTags = (item.tags || [])
+    .map((tag) => translateTokkoValue(tag))
+    .filter((tag) => hasDisplayValue(tag));
+  const tagGroups = getStructuredTagGroups(item.details, visibleTags);
+  const serviceTags = tagGroups.services;
+  const spaceTags = tagGroups.spaces;
+  const featureTags = tagGroups.features;
+
+  const placeDescriptionEntries = [
+    ['Uso de suelo', firstDisplayValue(item.details?.land_use, getCustomAttribute(item.details, ['Uso de suelo']), item.details?.zonification)],
+    ['Vista', firstDisplayValue(item.details?.view, getCustomAttribute(item.details, ['Vista']))],
+    ['Fraccionamiento', firstDisplayValue(item.details?.subdivision, getCustomAttribute(item.details, ['Fraccionamiento', 'Condominio']))],
+    ['Forma de terreno', firstDisplayValue(item.details?.land_shape, getCustomAttribute(item.details, ['Forma de terreno']), translateTokkoValue(item.details?.disposition))],
+    ['Topografía', firstDisplayValue(item.details?.topography, getCustomAttribute(item.details, ['Topografía', 'Topografia']))],
+    ['Número de frentes', firstDisplayValue(item.details?.front_count, getCustomAttribute(item.details, ['Número de frentes', 'Numero de frentes']))],
+    ['COS', firstDisplayValue(item.details?.cos, getCustomAttribute(item.details, ['COS']))],
+    ['CUS', firstDisplayValue(item.details?.cus, getCustomAttribute(item.details, ['CUS']))],
+  ].filter(([, value]) => hasDisplayValue(value));
+
   const openPropertyPdfPreview = async () => {
     if (pdfLoading) return;
 
     setPdfLoading(true);
     setPdfError('');
     try {
-      const tagGroups = categorizePdfTags(item.tags || []);
       const pdfPhotoSource = item.photos?.length
         ? item.photos
         : item.image_url
@@ -730,31 +875,41 @@ export default function PropertyDetailPage() {
         { label: 'Condición', value: translateTokkoValue(item.details?.property_condition) },
         { label: 'Antigüedad', value: formatAge(item.details?.age) },
         { label: 'Situación', value: translateTokkoValue(item.details?.situation) },
+        { label: 'Recámaras', value: toNumber(item.bedrooms) > 0 ? toNumber(item.bedrooms) : null },
         { label: 'Baños', value: toNumber(item.bathrooms) > 0 ? toNumber(item.bathrooms) : null },
         { label: 'Estacionamientos', value: toNumber(item.details?.parking_lot_amount) > 0 ? toNumber(item.details?.parking_lot_amount) : null },
+        { label: 'Mantenimiento', value: displayMaintenance },
       ].filter((entry) => hasDisplayValue(entry.value));
 
       const surfaces = [
         { label: 'Terreno', value: primaryArea > 0 ? `${primaryArea.toLocaleString('es-MX')} m²` : null },
         { label: 'Superficie cubierta', value: toNumber(item.details?.roofed_surface) > 0 ? `${toNumber(item.details?.roofed_surface).toLocaleString('es-MX')} m²` : null },
-        { label: 'Fondo', value: toNumber(item.details?.depth_measure || item.details?.land_length) > 0 ? `${toNumber(item.details?.depth_measure || item.details?.land_length).toLocaleString('es-MX')} m` : null },
-        { label: 'Frente', value: toNumber(item.details?.front_measure || item.details?.land_width) > 0 ? `${toNumber(item.details?.front_measure || item.details?.land_width).toLocaleString('es-MX')} m` : null },
+        { label: 'Fondo', value: toNumber(item.details?.depth_measure || item.details?.land_length || item.details?.custom_depth_measure) > 0 ? `${toNumber(item.details?.depth_measure || item.details?.land_length || item.details?.custom_depth_measure).toLocaleString('es-MX')} m` : null },
+        { label: 'Frente', value: toNumber(item.details?.front_measure || item.details?.land_width || item.details?.custom_front_measure) > 0 ? `${toNumber(item.details?.front_measure || item.details?.land_width || item.details?.custom_front_measure).toLocaleString('es-MX')} m` : null },
       ].filter((entry) => hasDisplayValue(entry.value));
+
+      const propertyDetails = detailEntries.map(([label, value]) => ({ label, value }));
+      const generalInfoDetails = generalInfo.map(([label, value]) => ({ label, value }));
 
       const { createPropertyPdf } = await import('../utils/propertyPdf.js');
       const result = await createPropertyPdf({
         reference: item.reference_code || `ARE-${id}`,
         propertyType: translateTokkoValue(item.property_type) || 'Propiedad',
         title: item.title || 'Propiedad',
-        location: item.location_full || item.city || item.address || '',
-        address: item.address || item.location_full || item.city || '',
+        location: displayLocation,
+        address: displayAddress || displayLocation,
         operation: badgeLabel.replace(/^En\s+/i, ''),
         price: displayPrice,
         description: displayDescription,
-        general,
+        propertyDetails,
+        general: general.length ? general : generalInfoDetails,
+        generalInfo: generalInfoDetails,
         surfaces,
-        services: tagGroups.services,
-        spaces: tagGroups.spaces.length ? tagGroups.spaces : tagGroups.features.slice(0, 6),
+        placeDetails: placeDescriptionEntries.map(([label, value]) => ({ label, value })),
+        maintenance: displayMaintenance,
+        services: serviceTags,
+        spaces: spaceTags,
+        features: featureTags,
         photoUrls,
         logoUrl: `${import.meta.env.BASE_URL}color_are.png`,
         contactName: SITE_CONTACT.name,
@@ -781,8 +936,8 @@ export default function PropertyDetailPage() {
     ['Tipo', translateTokkoValue(item.property_type)],
     ['Referencia', item.reference_code],
     ['Operación', badgeLabel],
-    ['Ubicación', item.location_full || item.address || item.city],
-    ['Dirección', item.address],
+    ['Ubicación', displayLocation],
+    ['Dirección', displayAddress],
     ['Código postal', item.details?.zip_code],
     ['Superficie total', primaryArea > 0 ? `${primaryArea.toLocaleString('es-MX')} m²` : null],
     ['Superficie techada', toNumber(item.details?.roofed_surface) > 0 ? `${toNumber(item.details.roofed_surface).toLocaleString('es-MX')} m²` : null],
@@ -795,13 +950,13 @@ export default function PropertyDetailPage() {
     ['Situación', translateTokkoValue(item.details?.situation)],
     ['Antigüedad', formatAge(item.details?.age)],
     ['Fecha de construcción', item.details?.construction_date],
-    ['Gastos / mantenimiento', toNumber(item.details?.expenses) > 0 ? `$${toNumber(item.details.expenses).toLocaleString('es-MX')} MXN` : null],
+    ['Gastos / mantenimiento', displayMaintenance],
   ].filter(([, value]) => hasDisplayValue(value));
 
   const generalInfo = [
-    ['Zonificación', item.details?.zonification],
-    ['$ x m²', pricePerM2 > 0 ? `$${pricePerM2.toLocaleString('es-MX', { maximumFractionDigits: 2 })}` : null],
-    ['Forma de terreno', translateTokkoValue(item.details?.disposition)],
+    ['Zonificación', firstDisplayValue(item.details?.zonification, item.details?.land_use)],
+    ['$ x m²', pricePerM2 > 0 ? `$${pricePerM2.toLocaleString('es-MX', { maximumFractionDigits: 2 })}` : firstDisplayValue(item.details?.custom_price_per_m2)],
+    ['Forma de terreno', firstDisplayValue(item.details?.land_shape, translateTokkoValue(item.details?.disposition))],
     ['Orientación', translateTokkoValue(item.details?.orientation)],
     ['Crédito elegible', translateTokkoValue(item.details?.credit_eligible)],
   ].filter(([, value]) => hasDisplayValue(value));
@@ -815,7 +970,7 @@ export default function PropertyDetailPage() {
         {backLabel}
       </Link>
 
-      <div className="grid items-start gap-8 lg:grid-cols-2 xl:gap-10">
+      <div className="grid items-start gap-8 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.92fr)] xl:gap-10">
         <div className="space-y-6 lg:space-y-7">
         <div className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm">
           <div className="relative overflow-hidden bg-slate-100">
@@ -951,27 +1106,59 @@ export default function PropertyDetailPage() {
 
         </div>
 
-        {item.tags?.length > 0 && (
+        {placeDescriptionEntries.length > 0 && (
           <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
-            <h2 className="font-heading text-xl font-bold text-slate-950">
-              {isDevelopment ? 'Características' : 'Amenidades y características'}
-            </h2>
-            {isDevelopment ? (
-              <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-                {item.tags.map((tag) => (
-                  <li key={tag} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-slate-800">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white text-xs font-bold">✓</span>
-                    {translateTokkoValue(tag)}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {item.tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700">
-                    {translateTokkoValue(tag)}
-                  </span>
-                ))}
+            <h2 className="font-heading text-xl font-bold text-slate-950">Descripción del lugar</h2>
+            <div className="mt-4 grid gap-3 rounded-2xl bg-gray-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
+              {placeDescriptionEntries.map(([label, value]) => (
+                <div key={label} className="rounded-xl bg-white px-4 py-3 shadow-sm">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">{label}</p>
+                  <p className="mt-1 whitespace-pre-line text-sm font-semibold text-slate-900">{value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {(serviceTags.length > 0 || spaceTags.length > 0 || featureTags.length > 0) && (
+          <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
+            {serviceTags.length > 0 && (
+              <div>
+                <h2 className="font-heading text-xl font-bold text-slate-950">Servicios</h2>
+                <ul className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {serviceTags.map((tag) => (
+                    <li key={tag} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-slate-800">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white text-xs font-bold">✓</span>
+                      {tag}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {spaceTags.length > 0 && (
+              <div className={serviceTags.length > 0 ? 'mt-7' : ''}>
+                <h2 className="font-heading text-xl font-bold text-slate-950">Espacios</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {spaceTags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {featureTags.length > 0 && (
+              <div className={(serviceTags.length > 0 || spaceTags.length > 0) ? 'mt-7' : ''}>
+                <h2 className="font-heading text-xl font-bold text-slate-950">Amenidades y características</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {featureTags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </section>
@@ -1001,7 +1188,7 @@ export default function PropertyDetailPage() {
               {badgeLabel}
             </span>
             <h1 className="mt-5 font-heading text-3xl font-black text-slate-950 md:text-4xl">{item.title}</h1>
-            <p className="mt-3 text-base text-gray-500">{item.location_full || item.address || item.city || 'Ubicación no disponible'}</p>
+            <p className="mt-3 text-base text-gray-500">{displayLocation}</p>
 
 
             {(() => {
@@ -1013,6 +1200,7 @@ export default function PropertyDetailPage() {
               if (areaNum > 0) parts.push(`Terreno: ${areaNum.toLocaleString('es-MX')} m²`);
               if (beds > 0) parts.push(`Recámaras: ${beds}`);
               if (baths > 0) parts.push(`Baños: ${baths}`);
+              if (displayMaintenance) parts.push(`Mantenimiento: ${displayMaintenance}`);
 
               if (parts.length === 0) return null;
 
@@ -1076,12 +1264,12 @@ export default function PropertyDetailPage() {
             </Link>
           </section>
 
-          {(hasCoords || item.address || item.location_full || item.city) && (
+          {(hasCoords || rawDisplayLocation) && (
             <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm md:p-7">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h3 className="font-heading text-xl font-bold text-slate-950">Ubicación</h3>
                 <a
-                  href={mapLink || `https://www.google.com/maps/search/${encodeURIComponent(item.address || item.location_full || item.city || '')}`}
+                  href={mapLink || `https://www.google.com/maps/search/${encodeURIComponent(displayAddress || rawDisplayLocation || '')}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-sm font-semibold text-brand-700 transition hover:text-brand-500"
@@ -1096,7 +1284,7 @@ export default function PropertyDetailPage() {
               ) : (
                 <div className="flex h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-slate-50 px-6 text-center">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  <p className="text-sm text-slate-500">{item.address || item.location_full || item.city || 'Ubicación no especificada'}</p>
+                  <p className="text-sm text-slate-500">{rawDisplayLocation || 'Ubicación no especificada'}</p>
                 </div>
               )}
               <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">

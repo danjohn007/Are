@@ -101,6 +101,38 @@ function decode_json_field(mixed $value, array $fallback = []): array
     return is_array($decoded) ? $decoded : $fallback;
 }
 
+function public_text_value(mixed $value): string
+{
+    if ($value === null || $value === false) {
+        return '';
+    }
+
+    if (is_array($value) || is_object($value)) {
+        return '';
+    }
+
+    $text = trim((string)$value);
+    return preg_replace('/\s+/u', ' ', $text) ?: $text;
+}
+
+function build_property_display_location(array $row): string
+{
+    $details = is_array($row['details'] ?? null) ? $row['details'] : [];
+    $fromDetails = public_text_value($details['display_location'] ?? null);
+    if ($fromDetails !== '') {
+        return $fromDetails;
+    }
+
+    $address = public_text_value($row['address'] ?? $details['published_address'] ?? null);
+    $location = public_text_value($row['location_full'] ?? $details['full_location'] ?? $row['city'] ?? null);
+
+    if ($address !== '' && $location !== '' && stripos($location, $address) === false) {
+        return $address . ' | ' . $location;
+    }
+
+    return $location !== '' ? $location : $address;
+}
+
 function normalize_property_row(array $row): array
 {
     $row['photos'] = decode_json_field($row['photos_json'] ?? null, []);
@@ -119,6 +151,8 @@ function normalize_property_row(array $row): array
             'order' => 0,
         ]];
     }
+
+    $row['display_location'] = build_property_display_location($row);
 
     unset($row['photos_json'], $row['tags_json'], $row['videos_json'], $row['files_json'], $row['details_json']);
 

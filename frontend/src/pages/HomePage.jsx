@@ -93,11 +93,12 @@ export default function HomePage() {
               {heroBadge}
             </span>
             <h1 className="font-heading text-4xl font-black leading-tight text-white md:text-6xl">
-              {titleLines.map((line, i) =>
-                i < titleLines.length - 1
-                  ? <span key={i}>{line}<br /></span>
-                  : <span key={i} className="text-brand-500">{line}</span>
-              )}
+              {titleLines.map((line, i) => (
+                <span key={i}>
+                  {line}
+                  {i < titleLines.length - 1 && <br />}
+                </span>
+              ))}
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-gray-300">
               {heroSubtitle}

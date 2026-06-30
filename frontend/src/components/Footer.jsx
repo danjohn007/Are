@@ -51,7 +51,7 @@ export default function Footer() {
 
   return (
     <footer className="mt-12 border-t border-gray-200 bg-white/90 text-slate-600 backdrop-blur-sm">
-      <div className="section-shell grid gap-10 py-14 md:grid-cols-4">
+      <div className="section-shell grid gap-10 py-14 md:grid-cols-5">
         {/* Brand */}
         <div className="md:col-span-1">
           <div className="flex items-center">
@@ -105,10 +105,12 @@ export default function Footer() {
         </div>
 
         {/* Office */}
-        <div>
+        <div className="md:col-span-2">
           <h4 className="mb-4 font-subheading text-sm uppercase tracking-[0.2em] text-slate-950">Oficinas</h4>
-          <p className="text-sm leading-relaxed">
-            Prol. Bernardo Quintana No. 300 || Piso 14-A || Torre 57 || Centro Sur || CP 76190 || Querétaro, Qro.
+          <p className="max-w-md text-sm leading-relaxed">
+            Prol. Bernardo Quintana No. 300 || Piso 14-A
+            <br />
+            Torre 57 || Centro Sur || CP 76190 || Querétaro, Qro.
           </p>
           <a
             href="https://maps.app.goo.gl/u5hinV12sCAoSfmB9"
@@ -139,7 +141,11 @@ export default function Footer() {
           </div>
           <div className="flex flex-col items-center justify-between gap-2 text-xs md:flex-row md:w-full">
             <span>© {new Date().getFullYear()} ARE — Todos los derechos reservados.</span>
-            <span>Diseñado para profesionales del sector inmobiliario</span>
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+              <Link to="/avisodeprivacidad" className="transition hover:text-brand-500">Aviso de privacidad</Link>
+              <Link to="/terminosycondiciones" className="transition hover:text-brand-500">Términos y condiciones</Link>
+              <span>Diseñado para profesionales del sector inmobiliario</span>
+            </div>
           </div>
         </div>
       </div>

@@ -15,6 +15,7 @@ import ContactPage from './pages/ContactPage';
 import AboutPage from './pages/AboutPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import LegalDocumentPage from './pages/LegalDocumentPage';
 import { useAuth } from './context/AuthContext';
 
 function ProtectedRoute({ children }) {
@@ -49,6 +50,8 @@ export default function App() {
         <Route path="/news/:slug" element={<BlogArticlePage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/nosotros" element={<AboutPage />} />
+        <Route path="/avisodeprivacidad" element={<LegalDocumentPage type="privacy" />} />
+        <Route path="/terminosycondiciones" element={<LegalDocumentPage type="terms" />} />
         <Route path="/login" element={<LoginPage />} />
       </Route>
       <Route

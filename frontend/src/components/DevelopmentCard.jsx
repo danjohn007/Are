@@ -20,6 +20,8 @@ export default function DevelopmentCard({ development }) {
           <img
             src={development.image_url || 'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=1200'}
             alt={development.title}
+            loading="lazy"
+            decoding="async"
             className="h-64 w-full object-cover transition-transform duration-500 group-hover:scale-105 md:h-72"
           />
           {/* Hover overlay */}

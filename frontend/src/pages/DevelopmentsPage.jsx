@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getAllPaginated } from '../services/api';
+import { getAllPaginated, readListCache, writeListCache } from '../services/api';
 import DevelopmentCard from '../components/DevelopmentCard';
 
 function normalize(s) {
@@ -24,6 +24,16 @@ const ChevronDown = () => (
   </svg>
 );
 
+function clearOldDevelopmentsListCaches(currentKey) {
+  try {
+    Object.keys(sessionStorage)
+      .filter((key) => key.startsWith('are:public:developments:') && key !== currentKey)
+      .forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    // Sin sessionStorage seguimos sin cache local.
+  }
+}
+
 const OPERATION_LABELS = {
   venta: 'En Venta',
   renta: 'En Renta',
@@ -42,20 +52,39 @@ export default function DevelopmentsPage() {
   const [error, setError]     = useState('');
 
   useEffect(() => {
+    let mounted = true;
+    const cacheKey = 'are:public:developments:v7-are-real-estate-visible';
+    clearOldDevelopmentsListCaches(cacheKey);
+    const cached = readListCache(cacheKey, 300000);
+
+    if (cached) {
+      setAllDevelopments(cached);
+      setLoading(false);
+    }
+
     async function fetchDevelopments() {
       try {
-        setLoading(true);
+        if (!cached) setLoading(true);
         setError('');
-        const data = await getAllPaginated('/properties', { listing_kind: 'development' });
+
+        const data = await getAllPaginated('/properties', { listing_kind: 'development', nocache: '1' }, 500);
+        if (!mounted) return;
+
         setAllDevelopments(data);
+        writeListCache(cacheKey, data);
       } catch {
-        setAllDevelopments([]);
-        setError('No pudimos cargar desarrollos en este momento. Revisa la URL del API en producción.');
+        if (!mounted) return;
+        if (!cached) {
+          setAllDevelopments([]);
+          setError('No pudimos cargar desarrollos en este momento. Revisa la URL del API en producción.');
+        }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
+
     fetchDevelopments();
+    return () => { mounted = false; };
   }, []);
 
   const baseSubset = useMemo(() =>

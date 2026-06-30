@@ -106,7 +106,7 @@ export default function DashboardPage() {
   const [aboutVision, setAboutVision] = useState({ title: '', desc: '' });
   const [aboutDifferentiators, setAboutDifferentiators] = useState(DEFAULT_DIFFERENTIATORS);
   const [aboutBrochure, setAboutBrochure] = useState('');
-  const [legalPrivacy, setLegalPrivacy] = useState('http://alterrarealestate.tuinmobiliaria.com.ar/Privacidad');
+  const [legalPrivacy, setLegalPrivacy] = useState('');
   const [legalTerms, setLegalTerms] = useState('');
   const [saving, setSaving] = useState('');
 
@@ -120,8 +120,14 @@ export default function DashboardPage() {
     setSyncMsg('');
     try {
       const res = await api.post('/properties/sync/tokko');
+      sessionStorage.removeItem('are:public:properties:inventory:v2');
+      sessionStorage.removeItem('are:public:properties:inventory:v3-are-real-estate');
+      sessionStorage.removeItem('are:public:developments:v2');
+      sessionStorage.removeItem('are:public:developments:v3-all-tokko');
+      sessionStorage.removeItem('are:public:developments:v4-are-real-estate');
       const count = res.data?.data?.synced ?? '?';
-      setSyncMsg(`Sincronizacion completada - ${count} propiedades actualizadas.`);
+      const devs = res.data?.data?.developments ?? 0;
+      setSyncMsg(`Sincronizacion completada - ${count} registros actualizados. Desarrollos detectados: ${devs}.`);
     } catch {
       setSyncMsg('Error al sincronizar. Intenta nuevamente.');
     } finally {
@@ -194,9 +200,10 @@ export default function DashboardPage() {
     finally { setSaving(''); }
   }
 
-  async function uploadDoc(file, setter) {
+  async function uploadDoc(file, setter, target = '') {
     const formData = new FormData();
     formData.append('image', file);
+    if (target) formData.append('target', target);
     setSaving('doc');
     try {
       const res = await api.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -1648,7 +1655,7 @@ export default function DashboardPage() {
 
           {/* LEGAL */}
           {tab === 'legal' && (
-            <div className="max-w-2xl space-y-6">
+            <div className="max-w-3xl space-y-6">
 
               {/* Aviso de privacidad */}
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -1657,38 +1664,30 @@ export default function DashboardPage() {
                   Aviso de Privacidad
                 </h3>
                 <div className="space-y-4">
-                  <Field label="URL del aviso (enlace externo o al archivo)">
-                    <input
-                      type="url"
-                      className={INPUT}
-                      placeholder="https://ejemplo.com/aviso-de-privacidad"
+                  <div className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-700 font-heading">Ruta pública fija</p>
+                    <a href="/are/avisodeprivacidad" target="_blank" rel="noreferrer" className="mt-1 inline-block text-sm font-semibold text-brand-700 underline underline-offset-2">
+                      https://are.mx/are/avisodeprivacidad
+                    </a>
+                    <p className="mt-1 text-xs text-granite">
+                      Escribe o pega aquí el texto legal. Ya no se usa PDF, así evitas que el navegador muestre botones de descarga.
+                    </p>
+                  </div>
+
+                  <Field label="Texto del aviso de privacidad">
+                    <textarea
+                      rows={18}
+                      className={`${INPUT} min-h-[360px] resize-y leading-relaxed`}
+                      placeholder={`AVISO DE PRIVACIDAD\n\nARE Real Estate, con domicilio en..., informa que...\n\n1. Datos personales que recopilamos\n...`}
                       value={legalPrivacy}
                       onChange={(e) => setLegalPrivacy(e.target.value)}
                     />
                   </Field>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-granite font-heading">O sube un PDF:</span>
-                    <label className="cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-granite transition hover:border-brand-400 hover:text-brand-500 font-heading">
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        className="sr-only"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) uploadDoc(f, setLegalPrivacy);
-                        }}
-                      />
-                      {saving === 'doc' ? 'Subiendo...' : 'Seleccionar PDF'}
-                    </label>
-                  </div>
-                  {legalPrivacy && (
-                    <div className="flex items-center gap-2 rounded-xl bg-brand-50 px-4 py-2.5">
-                      <FileText size={14} className="shrink-0 text-brand-500" />
-                      <a href={legalPrivacy} target="_blank" rel="noreferrer" className="truncate text-sm text-brand-600 underline underline-offset-2 font-heading">
-                        {legalPrivacy}
-                      </a>
-                    </div>
-                  )}
+
+                  <p className="rounded-xl bg-gray-50 px-4 py-3 text-xs leading-relaxed text-granite">
+                    Tip: separa los párrafos con líneas en blanco. El sitio respetará los saltos de línea para que se vea limpio y fácil de leer.
+                  </p>
+
                   <button
                     type="button"
                     disabled={saving === 'privacy'}
@@ -1705,41 +1704,33 @@ export default function DashboardPage() {
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                 <h3 className="font-heading mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 text-base font-bold text-slate-900">
                   <FileText size={16} className="text-brand-500" />
-                  Terminos y Condiciones
+                  Términos y Condiciones
                 </h3>
                 <div className="space-y-4">
-                  <Field label="URL de terminos (enlace externo o al archivo)">
-                    <input
-                      type="url"
-                      className={INPUT}
-                      placeholder="https://ejemplo.com/terminos"
+                  <div className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-700 font-heading">Ruta pública fija</p>
+                    <a href="/are/terminosycondiciones" target="_blank" rel="noreferrer" className="mt-1 inline-block text-sm font-semibold text-brand-700 underline underline-offset-2">
+                      https://are.mx/are/terminosycondiciones
+                    </a>
+                    <p className="mt-1 text-xs text-granite">
+                      Escribe o pega aquí los términos. La página pública mostrará solamente el contenido capturado.
+                    </p>
+                  </div>
+
+                  <Field label="Texto de términos y condiciones">
+                    <textarea
+                      rows={18}
+                      className={`${INPUT} min-h-[360px] resize-y leading-relaxed`}
+                      placeholder={`TÉRMINOS Y CONDICIONES\n\nAl utilizar este sitio web aceptas los siguientes términos...\n\n1. Uso del sitio\n...`}
                       value={legalTerms}
                       onChange={(e) => setLegalTerms(e.target.value)}
                     />
                   </Field>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-granite font-heading">O sube un PDF:</span>
-                    <label className="cursor-pointer rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-granite transition hover:border-brand-400 hover:text-brand-500 font-heading">
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        className="sr-only"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) uploadDoc(f, setLegalTerms);
-                        }}
-                      />
-                      {saving === 'doc' ? 'Subiendo...' : 'Seleccionar PDF'}
-                    </label>
-                  </div>
-                  {legalTerms && (
-                    <div className="flex items-center gap-2 rounded-xl bg-brand-50 px-4 py-2.5">
-                      <FileText size={14} className="shrink-0 text-brand-500" />
-                      <a href={legalTerms} target="_blank" rel="noreferrer" className="truncate text-sm text-brand-600 underline underline-offset-2 font-heading">
-                        {legalTerms}
-                      </a>
-                    </div>
-                  )}
+
+                  <p className="rounded-xl bg-gray-50 px-4 py-3 text-xs leading-relaxed text-granite">
+                    Tip: puedes pegar el texto desde Word o Google Docs. Los saltos de línea se conservarán en la página pública.
+                  </p>
+
                   <button
                     type="button"
                     disabled={saving === 'terms'}
@@ -1747,11 +1738,10 @@ export default function DashboardPage() {
                     className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-600 disabled:opacity-50 font-heading"
                   >
                     <Save size={14} />
-                    {saving === 'terms' ? 'Guardando...' : 'Guardar terminos'}
+                    {saving === 'terms' ? 'Guardando...' : 'Guardar términos'}
                   </button>
                 </div>
               </div>
-
             </div>
           )}
 

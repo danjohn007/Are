@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 
 export default function ContactPage() {
@@ -224,13 +224,13 @@ export default function ContactPage() {
               />
               <span className="text-xs leading-relaxed text-slate-500">
                 He leído y acepto los{' '}
-                <a href="http://alterrarealestate.tuinmobiliaria.com.ar/Privacidad" target="_blank" rel="noreferrer" className="font-semibold text-brand-500 underline underline-offset-2 hover:text-brand-600">
+                <Link to="/terminosycondiciones" className="font-semibold text-brand-500 underline underline-offset-2 hover:text-brand-600">
                   términos y condiciones
-                </a>{' '}
+                </Link>{' '}
                 y el{' '}
-                <a href="http://alterrarealestate.tuinmobiliaria.com.ar/Privacidad" target="_blank" rel="noreferrer" className="font-semibold text-brand-500 underline underline-offset-2 hover:text-brand-600">
+                <Link to="/avisodeprivacidad" className="font-semibold text-brand-500 underline underline-offset-2 hover:text-brand-600">
                   aviso de privacidad
-                </a>{' '}
+                </Link>{' '}
                 de are REAL ESTATE.
               </span>
             </label>

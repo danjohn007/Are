@@ -184,3 +184,21 @@ img, video, iframe, embed, object {
   .stagger-3 { animation-delay: 180ms !important; }
   .stagger-4 { animation-delay: 240ms !important; }
 }
+
+
+/* Google Translate widget: se usa oculto, con botones propios ES/EN. */
+.google-translate-hidden,
+.goog-te-banner-frame,
+.goog-te-gadget,
+.goog-te-balloon-frame,
+#goog-gt-tt {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+body > .skiptranslate {
+  display: none !important;
+}
