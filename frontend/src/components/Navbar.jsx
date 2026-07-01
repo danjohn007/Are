@@ -66,7 +66,7 @@ export default function Navbar() {
             Contáctanos
           </Link>
           <a
-            href="https://arehomes.mx"
+            href="https://are.mx/homes/"
             target="_blank"
             rel="noreferrer"
             className="hidden rounded-lg border border-brand-500 px-4 py-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-50 md:block"
