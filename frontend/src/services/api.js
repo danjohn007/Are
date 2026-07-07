@@ -12,8 +12,8 @@ function clearAuthStorage() {
 }
 
 function redirectToLogin() {
-  if (window.location.pathname !== '/are/login') {
-    window.location.assign('/are/login');
+  if (window.location.pathname !== '/login') {
+    window.location.assign('/login');
   }
 }
 

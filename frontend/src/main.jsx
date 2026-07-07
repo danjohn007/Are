@@ -21,7 +21,7 @@ window.addEventListener('unhandledrejection', (event) => {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter basename="/are">
+    <BrowserRouter>
       <AuthProvider>
         <App />
       </AuthProvider>
